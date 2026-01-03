@@ -1,0 +1,326 @@
+/* Handheld-specific styles */
+
+/* Optimized for outdoor visibility and touch interaction */
+
+.handheld-interface {
+  --input-height: var(--input-height-handheld);
+  --button-height: var(--button-height-handheld);
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-white);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* High contrast text for outdoor visibility */
+.handheld-interface .text-primary {
+  color: #FFFFFF;
+}
+
+.handheld-interface .text-secondary {
+  color: #B0B0B0;
+}
+
+/* Larger touch targets */
+.handheld-interface button,
+.handheld-interface .touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Large form inputs */
+.handheld-interface input,
+.handheld-interface select,
+.handheld-interface textarea {
+  height: var(--input-height-handheld);
+  font-size: 16px; /* Prevents zoom on iOS */
+  padding: 16px;
+  background-color: #1E2340;
+  color: #FFFFFF;
+}
+
+.handheld-interface input::placeholder {
+  color: #6B7280;
+}
+
+.handheld-interface input:focus {
+  background-color: #252B4A;
+  outline: none;
+}
+
+/* Primary button - large and prominent */
+.handheld-interface .btn-primary {
+  height: var(--button-height-handheld);
+  width: 100%;
+  background-color: var(--color-primary-blue);
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all var(--transition-fast);
+}
+
+.handheld-interface .btn-primary:active {
+  transform: scale(0.98);
+  background-color: var(--color-primary-blue-light);
+}
+
+/* Secondary/Yellow action button */
+.handheld-interface .btn-action {
+  height: var(--button-height-handheld);
+  width: 100%;
+  background-color: var(--color-primary-yellow);
+  color: var(--color-bg-dark);
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.handheld-interface .btn-action:active {
+  transform: scale(0.98);
+  filter: brightness(0.95);
+}
+
+/* Ghost button */
+.handheld-interface .btn-ghost {
+  height: var(--button-height-handheld);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Cards with dark theme */
+.handheld-interface .card {
+  background-color: #141729;
+  padding: 16px;
+}
+
+/* Header bar */
+.handheld-header {
+  height: var(--mobile-header-height);
+  background-color: var(--color-primary-blue);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.handheld-header.safe-area {
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--mobile-header-height) + env(safe-area-inset-top));
+}
+
+/* Content area */
+.handheld-content {
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+/* Bottom action bar */
+.handheld-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  background-color: var(--color-bg-dark);
+  z-index: var(--z-sticky);
+}
+
+/* Status indicators */
+.handheld-interface .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.handheld-interface .status-unpaid {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: #FFB74D;
+}
+
+.handheld-interface .status-paid {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #81C784;
+}
+
+.handheld-interface .status-overdue {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #E57373;
+}
+
+/* Quick action buttons grid */
+.handheld-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 16px;
+}
+
+.handheld-quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  background-color: #141729;
+  color: white;
+  transition: all var(--transition-fast);
+}
+
+.handheld-quick-action:active {
+  transform: scale(0.98);
+  background-color: #1E2340;
+}
+
+.handheld-quick-action .icon {
+  width: 32px;
+  height: 32px;
+  color: var(--color-primary-yellow);
+}
+
+.handheld-quick-action .label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Progress steps */
+.handheld-progress-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.handheld-progress-step {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #3A4060;
+  transition: all var(--transition-fast);
+}
+
+.handheld-progress-step.active {
+  width: 24px;
+  background-color: var(--color-primary-yellow);
+}
+
+.handheld-progress-step.completed {
+  background-color: var(--color-success);
+}
+
+/* Connection status */
+.handheld-connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.handheld-connection-status.online {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #81C784;
+}
+
+.handheld-connection-status.offline {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #E57373;
+}
+
+/* Printer status */
+.handheld-printer-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #1E2340;
+  font-size: 14px;
+}
+
+.handheld-printer-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.handheld-printer-status .dot.connected {
+  background-color: var(--color-success);
+}
+
+.handheld-printer-status .dot.disconnected {
+  background-color: var(--color-error);
+}
+
+/* Numeric keypad styling */
+.handheld-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 16px;
+}
+
+.handheld-keypad button {
+  height: 64px;
+  background-color: #1E2340;
+  font-size: 24px;
+  font-weight: 600;
+  color: white;
+}
+
+.handheld-keypad button:active {
+  background-color: #2A3050;
+}
+
+/* Photo capture area */
+.handheld-camera-preview {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background-color: #000;
+  overflow: hidden;
+  position: relative;
+}
+
+.handheld-camera-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.handheld-camera-controls {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.handheld-capture-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background-color: white;
+  border: 4px solid rgba(255, 255, 255, 0.5);
+}
+
+.handheld-capture-btn:active {
+  transform: scale(0.95);
+}
