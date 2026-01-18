@@ -1,5 +1,7 @@
-import { ChevronRight, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
+import React from 'react';
+import { ChevronRight } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/formatting';
+import { cn } from '@/lib/utils';
 
 export interface TicketListItemProps {
   ticket: {
@@ -14,44 +16,40 @@ export interface TicketListItemProps {
   onClick: () => void;
 }
 
-export function TicketListItem({ ticket, onClick }: TicketListItemProps) {
-  const getStatusStyle = (status?: string) => {
-    switch (status) {
-      case 'paid': return { bg: '#DCFCE7', color: '#166534', icon: CheckCircle2 };
-      case 'unpaid': return { bg: '#FEF3C7', color: '#92400E', icon: Clock };
-      case 'overdue': return { bg: '#FEE2E2', color: '#991B1B', icon: AlertTriangle };
-      default: return { bg: '#F3F4F6', color: '#374151', icon: Clock };
-    }
-  };
+const getStatusClasses = (status?: string) => {
+  switch (status) {
+    case 'paid': return { bg: 'bg-green-100', text: 'text-green-800' };
+    case 'unpaid': return { bg: 'bg-amber-100', text: 'text-amber-800' };
+    case 'overdue': return { bg: 'bg-red-100', text: 'text-red-800' };
+    default: return { bg: 'bg-gray-100', text: 'text-gray-800' };
+  }
+};
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  };
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+};
 
-  const statusStyle = getStatusStyle(ticket.status);
+export const TicketListItem = React.memo<TicketListItemProps>(function TicketListItem({ ticket, onClick }) {
+  const statusClasses = getStatusClasses(ticket.status);
 
   return (
     <button
       onClick={onClick}
-      className="w-full block text-left transition-colors"
-      style={{ backgroundColor: '#FFFFFF', padding: '16px', marginBottom: '12px' }}
+      className="w-full block text-left transition-colors bg-white p-4 mb-3"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="font-mono text-lg font-bold" style={{ color: '#1A1F3A' }}>
+        <span className="font-mono text-lg font-bold text-primary-blue">
           {ticket.vehicle}
         </span>
         {ticket.status && (
-          <span 
-            className="px-2 py-1 text-xs font-semibold uppercase"
-            style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}
-          >
+          <span className={cn('px-2 py-1 text-xs font-semibold uppercase', statusClasses.bg, statusClasses.text)}>
             {ticket.status}
           </span>
         )}
@@ -62,10 +60,12 @@ export function TicketListItem({ ticket, onClick }: TicketListItemProps) {
           <p className="text-xs text-gray-500 mt-1">{formatDate(ticket.date)} • {ticket.time}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="font-bold" style={{ color: '#1A1F3A' }}>{formatCurrency(ticket.amount)}</span>
+          <span className="font-bold text-primary-blue">{formatCurrency(ticket.amount)}</span>
           <ChevronRight className="h-4 w-4 text-gray-400" />
         </div>
       </div>
     </button>
   );
-}
+});
+
+export default TicketListItem;

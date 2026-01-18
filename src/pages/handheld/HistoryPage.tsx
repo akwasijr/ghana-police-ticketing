@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -13,12 +13,13 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { printTicket } from '@/lib/utils/print';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useTicketStore } from '@/store';
 import { usePrinter } from '@/hooks/usePrinter';
 import { TicketReceipt, TicketListItem } from '@/components/shared';
+import type { TicketListItem as TicketListItemType } from '@/types/ticket.types';
 
 
-// Demo ticket data
+// Demo ticket data (fallback if store is empty)
 const DEMO_TICKETS = [
   { 
     id: 'GPS-2026-0012', 
@@ -106,16 +107,71 @@ const DEMO_TICKETS = [
   },
 ];
 
+// Convert store tickets to display format
+interface DisplayTicket {
+  id: string;
+  vehicle: string;
+  vehicleType?: string;
+  vehicleColor?: string;
+  driver: string;
+  driverId: string;
+  offense: string;
+  amount: number;
+  status: 'paid' | 'unpaid' | 'overdue';
+  date: string;
+  time: string;
+  location: string;
+}
+
 export function HistoryPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { tickets: storeTickets } = useTicketStore();
   const printer = usePrinter();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [selectedTicket, setSelectedTicket] = useState<typeof DEMO_TICKETS[0] | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<DisplayTicket | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid' | 'overdue'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'amount'>('newest');
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+
+  // Convert store tickets to display format and merge with demo data
+  const allTickets: DisplayTicket[] = useMemo(() => {
+    const convertedStoreTickets: DisplayTicket[] = storeTickets.map((t: TicketListItemType) => {
+      const issuedDate = new Date(t.issuedAt);
+      const dueDate = new Date(t.dueDate);
+      const now = new Date();
+      
+      // Determine status
+      let displayStatus: 'paid' | 'unpaid' | 'overdue' = 'unpaid';
+      if (t.status === 'paid') {
+        displayStatus = 'paid';
+      } else if (t.status === 'overdue' || (t.status === 'unpaid' && dueDate < now)) {
+        displayStatus = 'overdue';
+      }
+      
+      return {
+        id: t.ticketNumber,
+        vehicle: t.vehicleReg,
+        vehicleType: undefined,
+        vehicleColor: undefined,
+        driver: 'Driver',
+        driverId: 'N/A',
+        offense: `${t.offenceCount} offence${t.offenceCount > 1 ? 's' : ''}`,
+        amount: t.totalFine,
+        status: displayStatus,
+        date: issuedDate.toISOString().split('T')[0],
+        time: issuedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        location: t.stationName || 'Unknown location',
+      };
+    });
+    
+    // Return store tickets first, then demo if store is empty
+    if (convertedStoreTickets.length > 0) {
+      return [...convertedStoreTickets, ...DEMO_TICKETS];
+    }
+    return DEMO_TICKETS;
+  }, [storeTickets]);
 
   // Generate QR code when ticket is selected
   useEffect(() => {
@@ -130,7 +186,7 @@ export function HistoryPage() {
   }, [selectedTicket]);
 
   // Filter and sort tickets
-  const filteredTickets = DEMO_TICKETS
+  const filteredTickets = allTickets
     .filter(ticket => {
       // Search filter
       if (searchQuery) {
@@ -165,7 +221,7 @@ export function HistoryPage() {
   };
 
   // Print ticket receipt
-  const handlePrint = async (ticket: typeof DEMO_TICKETS[0]) => {
+  const handlePrint = async (ticket: DisplayTicket) => {
     const ticketData = {
       ticketNumber: ticket.id,
       date: new Date(ticket.date).toLocaleDateString('en-GB'),
@@ -430,3 +486,5 @@ export function HistoryPage() {
     </div>
   );
 }
+
+export default HistoryPage;

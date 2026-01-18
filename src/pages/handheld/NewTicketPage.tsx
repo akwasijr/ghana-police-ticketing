@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -28,19 +28,21 @@ import {
   FileText,
   RefreshCw,
   Satellite,
-  Keyboard
+  Keyboard,
+  Scan,
+  type LucideIcon
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { useTicketStore, useAuthStore } from '@/store';
+import { useTicketStore, useAuthStore, useActiveOffences } from '@/store';
 import { formatCurrency } from '@/lib/utils/formatting';
 import { printTicket } from '@/lib/utils/print';
+import { scanIdCard } from '@/lib/utils/ocr';
 import { cn } from '@/lib/utils';
 import { useCamera } from '@/hooks/useCamera';
 import { useLocation as useGeoLocation } from '@/hooks/useLocation';
 import { usePrinter } from '@/hooks/usePrinter';
 import { LoadingSpinner, TicketReceipt } from '@/components/shared';
-
-
+import type { OffenceCategory } from '@/types/offence.types';
 const STEPS = [
   { id: 1, name: 'Vehicle & Driver' },
   { id: 2, name: 'Select Violation' },
@@ -48,19 +50,36 @@ const STEPS = [
   { id: 4, name: 'Review & Print' },
 ];
 
-// Common violations with icons - all use same base color for consistency
-const VIOLATIONS = [
-  { id: 'SPD', name: 'Speeding', fine: 200, icon: Zap, category: 'speeding' as const },
-  { id: 'RLV', name: 'Red Light Violation', fine: 150, icon: StopCircle, category: 'signal' as const },
-  { id: 'NSB', name: 'No Seatbelt', fine: 50, icon: ShieldOff, category: 'safety' as const },
-  { id: 'PWD', name: 'Phone While Driving', fine: 200, icon: Smartphone, category: 'reckless' as const },
-  { id: 'ILP', name: 'Illegal Parking', fine: 80, icon: ParkingCircle, category: 'parking' as const },
-  { id: 'WLN', name: 'Wrong Lane', fine: 120, icon: ArrowLeftRight, category: 'reckless' as const },
-  { id: 'NHL', name: 'No Headlights', fine: 80, icon: Lightbulb, category: 'safety' as const },
-  { id: 'RKD', name: 'Reckless Driving', fine: 300, icon: AlertOctagon, category: 'reckless' as const },
-  { id: 'DUI', name: 'Drunk Driving', fine: 500, icon: Beer, category: 'reckless' as const },
-  { id: 'NLI', name: 'No License/Insurance', fine: 400, icon: FileX, category: 'documentation' as const },
-];
+// Icon mapping for offence categories - maps store offence IDs to icons
+const OFFENCE_ICONS: Record<string, LucideIcon> = {
+  'off-001': Zap,           // Exceeding Speed Limit
+  'off-002': Zap,           // Reckless Speeding
+  'off-003': StopCircle,    // Red Light Violation
+  'off-004': StopCircle,    // Failure to Obey Traffic Signs
+  'off-005': FileX,         // Driving Without License
+  'off-006': FileX,         // Expired Vehicle Registration
+  'off-007': FileX,         // No Insurance
+  'off-008': ShieldOff,     // No Seatbelt
+  'off-009': Smartphone,    // Using Mobile Phone While Driving
+  'off-010': Beer,          // Drunk Driving
+  'off-011': ParkingCircle, // Illegal Parking
+  'off-012': ParkingCircle, // Double Parking
+  'off-013': Lightbulb,     // Defective Lights
+  'off-014': AlertOctagon,  // Overloading
+  'off-015': ArrowLeftRight, // Dangerous Overtaking
+};
+
+// Default icon for categories
+const CATEGORY_ICONS: Record<OffenceCategory, LucideIcon> = {
+  speed: Zap,
+  traffic_signal: StopCircle,
+  documentation: FileX,
+  vehicle_condition: Lightbulb,
+  parking: ParkingCircle,
+  dangerous_driving: AlertOctagon,
+  licensing: FileX,
+  other: AlertTriangle,
+};
 
 // Vehicle types
 const VEHICLE_TYPES = [
@@ -71,6 +90,7 @@ const VEHICLE_TYPES = [
 export function NewTicketPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const activeOffences = useActiveOffences();
   const { 
     newTicket, 
     setVehicle, 
@@ -83,8 +103,21 @@ export function NewTicketPage() {
     setNotes,
     resetNewTicket, 
     getTotalFine,
-    setCurrentStep 
+    setCurrentStep,
+    submitTicket
   } = useTicketStore();
+  
+  // Map offence store data to UI format with icons
+  const violations = useMemo(() => {
+    return activeOffences.map(offence => ({
+      id: offence.id,
+      name: offence.name,
+      fine: offence.defaultFine,
+      icon: OFFENCE_ICONS[offence.id] || CATEGORY_ICONS[offence.category] || AlertTriangle,
+      category: offence.category,
+      code: offence.code,
+    }));
+  }, [activeOffences]);
   
   const [step, setStep] = useState(1);
   const [showCustomViolation, setShowCustomViolation] = useState(false);
@@ -97,6 +130,8 @@ export function NewTicketPage() {
   const [ticketNumber, setTicketNumber] = useState<string>('');
   const [locationMode, setLocationMode] = useState<'gps' | 'manual'>('gps');
   const [hasAttemptedNext, setHasAttemptedNext] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'evidence' | 'ocr'>('evidence');
   
   const camera = useCamera();
   const geoLocation = useGeoLocation();
@@ -167,6 +202,20 @@ export function NewTicketPage() {
   };
 
   const handleSubmit = () => {
+    // Submit ticket to store
+    const submittedTicket = submitTicket({
+      id: user?.id || 'unknown',
+      name: user?.fullName || 'GPS Officer',
+      badgeNumber: user?.officer?.badgeNumber,
+      stationId: user?.officer?.stationId,
+      stationName: user?.officer?.station?.name,
+      regionId: user?.officer?.regionId,
+      regionName: user?.officer?.station?.regionName,
+    });
+    
+    // Update ticket number to match the generated one
+    setTicketNumber(submittedTicket.ticketNumber);
+    
     // Show success screen with print preview
     setShowSuccessScreen(true);
   };
@@ -243,7 +292,7 @@ export function NewTicketPage() {
 
   const isViolationSelected = (id: string) => newTicket.offences.some(o => o.id === id);
 
-  const toggleViolation = (violation: typeof VIOLATIONS[0]) => {
+  const toggleViolation = (violation: typeof violations[0]) => {
     if (isViolationSelected(violation.id)) {
       removeOffence(violation.id);
     } else {
@@ -251,7 +300,7 @@ export function NewTicketPage() {
         id: violation.id,
         name: violation.name,
         fine: violation.fine,
-        category: violation.category,
+        category: violation.category as any,
       });
     }
   };
@@ -269,19 +318,56 @@ export function NewTicketPage() {
     }
   };
 
+  const handleScanId = () => {
+    setCameraMode('ocr');
+    setShowCamera(true);
+    camera.startCamera();
+  };
+
   const capturePhoto = async () => {
-    const photo = await camera.capturePhoto({ type: 'evidence' });
-    if (photo) {
-      addPhoto({
-        id: photo.id,
-        uri: photo.uri,
-        timestamp: photo.timestamp,
-        type: 'evidence',
-        uploaded: false,
-      });
+    if (cameraMode === 'ocr') {
+      setIsScanning(true);
+      try {
+        const photo = await camera.capturePhoto({ type: 'evidence' });
+        if (photo) {
+          const response = await fetch(photo.uri);
+          const blob = await response.blob();
+          const file = new File([blob], "scan.jpg", { type: "image/jpeg" });
+          
+          const result = await scanIdCard(file);
+          
+          if (result) {
+             setDriver({
+               firstName: result.firstName || newTicket.driver.firstName,
+               lastName: result.lastName || newTicket.driver.lastName,
+               licenseNumber: newTicket.driver.licenseNumber,
+               idNumber: result.idNumber || newTicket.driver.idNumber,
+               idType: result.idNumber?.startsWith('GHA') ? 'ghana_card' : newTicket.driver.idType,
+               phone: newTicket.driver.phone
+             });
+          }
+        }
+      } catch (error) {
+        console.error("OCR Error:", error);
+      } finally {
+        setIsScanning(false);
+        setShowCamera(false);
+        camera.stopCamera();
+      }
+    } else {
+      const photo = await camera.capturePhoto({ type: 'evidence' });
+      if (photo) {
+        addPhoto({
+          id: photo.id,
+          uri: photo.uri,
+          timestamp: photo.timestamp,
+          type: 'evidence',
+          uploaded: false,
+        });
+      }
+      setShowCamera(false);
+      camera.stopCamera();
     }
-    setShowCamera(false);
-    camera.stopCamera();
   };
 
   // Validation
@@ -435,14 +521,23 @@ export function NewTicketPage() {
 
             {/* Driver Section - Mandatory */}
             <div className="bg-white p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5" style={{ backgroundColor: '#F9A825' }}>
-                  <User className="h-5 w-5" style={{ color: '#1A1F3A' }} />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5" style={{ backgroundColor: '#F9A825' }}>
+                    <User className="h-5 w-5" style={{ color: '#1A1F3A' }} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Driver Information</h3>
+                    <p className="text-xs text-red-600 font-medium">* Required fields</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Driver Information</h3>
-                  <p className="text-xs text-red-600 font-medium">* Required fields</p>
-                </div>
+                <button
+                  onClick={handleScanId}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium active:bg-blue-100"
+                >
+                  <Scan className="h-4 w-4" />
+                  Scan ID
+                </button>
               </div>
               
               {/* Names */}
@@ -555,7 +650,7 @@ export function NewTicketPage() {
 
             {/* Violations Grid - Common Color Theme */}
             <div className="grid grid-cols-2 gap-3">
-              {VIOLATIONS.map((violation) => {
+              {violations.map((violation) => {
                 const Icon = violation.icon;
                 const selected = isViolationSelected(violation.id);
                 return (
@@ -975,6 +1070,31 @@ export function NewTicketPage() {
           />
           <canvas ref={camera.canvasRef} className="hidden" />
           
+          {/* OCR Overlay */}
+          {cameraMode === 'ocr' && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="w-[85%] aspect-[1.586] border-2 border-white/50 rounded-lg relative">
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#F9A825]" />
+                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#F9A825]" />
+                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#F9A825]" />
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#F9A825]" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <p className="text-white/80 text-sm font-medium bg-black/50 px-3 py-1 rounded-full">
+                    Align ID Card Here
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading Overlay */}
+          {isScanning && (
+            <div className="absolute inset-0 z-50 bg-black/50 flex flex-col items-center justify-center">
+              <LoadingSpinner size="lg" className="[&_svg]:text-[#F9A825]" />
+              <p className="text-white mt-4 font-medium">Scanning ID...</p>
+            </div>
+          )}
+          
           {/* Camera Controls */}
           <div className="absolute bottom-0 left-0 right-0 p-6 pb-safe bg-gradient-to-t from-black/80">
             <div className="flex items-center justify-center gap-8">
@@ -982,23 +1102,30 @@ export function NewTicketPage() {
                 onClick={() => {
                   setShowCamera(false);
                   camera.stopCamera();
+                  setIsScanning(false);
                 }}
+                disabled={isScanning}
                 aria-label="Close camera"
-                className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center"
+                className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center disabled:opacity-50"
               >
                 <X className="h-6 w-6 text-white" />
               </button>
               <button
                 onClick={capturePhoto}
+                disabled={isScanning}
                 aria-label="Take photo"
-                className="w-20 h-20 rounded-full bg-white flex items-center justify-center"
+                className="w-20 h-20 rounded-full bg-white flex items-center justify-center disabled:opacity-50"
               >
-                <div className="w-16 h-16 rounded-full border-4 border-[#1A1F3A]" />
+                <div className={cn(
+                  "w-16 h-16 rounded-full border-4",
+                  cameraMode === 'ocr' ? "border-blue-500" : "border-[#1A1F3A]"
+                )} />
               </button>
               <button
                 onClick={camera.switchCamera}
+                disabled={isScanning}
                 aria-label="Switch camera"
-                className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center"
+                className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center disabled:opacity-50"
               >
                 <Camera className="h-6 w-6 text-white" />
               </button>
@@ -1188,3 +1315,5 @@ export function NewTicketPage() {
     </div>
   );
 }
+
+export default NewTicketPage;

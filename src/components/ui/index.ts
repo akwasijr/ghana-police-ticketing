@@ -28,3 +28,8 @@ export {
   TableCell,
   TableCaption,
 } from './table';
+
+export { Tabs } from './tabs';
+
+export { Dropdown } from './Dropdown';
+export type { DropdownItem } from './Dropdown';

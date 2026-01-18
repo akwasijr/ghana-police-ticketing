@@ -1,10 +1,43 @@
 // Export all types from a single entry point
 
+// Core entity types
 export * from './ticket.types';
-// export * from './officer.types'; // Avoid conflict with api.types
 export * from './payment.types';
 export * from './printer.types';
 export * from './api.types';
+
+// Offence types (master catalog) - use these for offence management
+export {
+  type Offence,
+  type OffenceCategory,
+  type OffenceFormData,
+  OFFENCE_CATEGORIES,
+} from './offence.types';
+
+// Hierarchy types (regions, divisions, districts, stations)
+export * from './hierarchy.types';
+
+// Objection types
+export * from './objection.types';
+
+// Audit log types
+export * from './audit.types';
+
+// Officer types - selectively export to avoid conflicts
+export {
+  type UserRole,
+  type OfficerRank,
+  type Officer,
+  type User,
+  type AuthCredentials,
+  type AuthTokens,
+  type AuthSession,
+  type LoginResponse,
+  type OfficerStats,
+  type OfficerFilters,
+  type CreateOfficerInput,
+  type UpdateOfficerInput,
+} from './officer.types';
 
 // Additional shared types
 

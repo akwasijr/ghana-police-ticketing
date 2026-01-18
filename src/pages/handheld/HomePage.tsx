@@ -83,12 +83,26 @@ const DEMO_DRIVERS: Record<string, {
 };
 
 type LookupType = 'vehicle' | 'driver' | null;
+type TicketStatusType = 'paid' | 'unpaid' | 'overdue';
 
 // Recent tickets data
-const RECENT_TICKETS = [
-  { id: 'GPS-2026-001', vehicle: 'GR-1234-24', vehicleType: 'Toyota Corolla', vehicleColor: 'Silver', driver: 'Kwame Mensah', driverId: 'DL-123456', offense: 'Speeding', amount: 200, status: 'paid' as const, time: '10:30 AM', date: '2026-01-02', location: 'Ring Road Central, Accra' },
-  { id: 'GPS-2026-002', vehicle: 'AS-5678-23', vehicleType: 'Honda CR-V', vehicleColor: 'Black', driver: 'Ama Asante', driverId: 'DL-789012', offense: 'No Seatbelt', amount: 50, status: 'unpaid' as const, time: '09:15 AM', date: '2026-01-02', location: 'Liberation Road, Accra' },
-  { id: 'GPS-2026-003', vehicle: 'GT-9012-24', vehicleType: 'Mercedes E-Class', vehicleColor: 'White', driver: 'Kofi Owusu', driverId: 'DL-345678', offense: 'Illegal Parking', amount: 80, status: 'unpaid' as const, time: '08:45 AM', date: '2026-01-02', location: 'Oxford Street, Osu' },
+const RECENT_TICKETS: Array<{
+  id: string;
+  vehicle: string;
+  vehicleType: string;
+  vehicleColor: string;
+  driver: string;
+  driverId: string;
+  offense: string;
+  amount: number;
+  status: TicketStatusType;
+  time: string;
+  date: string;
+  location: string;
+}> = [
+  { id: 'GPS-2026-001', vehicle: 'GR-1234-24', vehicleType: 'Toyota Corolla', vehicleColor: 'Silver', driver: 'Kwame Mensah', driverId: 'DL-123456', offense: 'Speeding', amount: 200, status: 'paid', time: '10:30 AM', date: '2026-01-02', location: 'Ring Road Central, Accra' },
+  { id: 'GPS-2026-002', vehicle: 'AS-5678-23', vehicleType: 'Honda CR-V', vehicleColor: 'Black', driver: 'Ama Asante', driverId: 'DL-789012', offense: 'No Seatbelt', amount: 50, status: 'unpaid', time: '09:15 AM', date: '2026-01-02', location: 'Liberation Road, Accra' },
+  { id: 'GPS-2026-003', vehicle: 'GT-9012-24', vehicleType: 'Mercedes E-Class', vehicleColor: 'White', driver: 'Kofi Owusu', driverId: 'DL-345678', offense: 'Illegal Parking', amount: 80, status: 'overdue', time: '08:45 AM', date: '2026-01-02', location: 'Oxford Street, Osu' },
 ];
 
 export function HomePage() {
@@ -210,13 +224,10 @@ export function HomePage() {
     }, 500);
   };
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'paid': return { bg: '#DCFCE7', color: '#166534', icon: CheckCircle2 };
-      case 'unpaid': return { bg: '#FEF3C7', color: '#92400E', icon: Clock };
-      case 'overdue': return { bg: '#FEE2E2', color: '#991B1B', icon: AlertTriangle };
-      default: return { bg: '#F3F4F6', color: '#374151', icon: Clock };
-    }
+  const getTotalOwing = (offenses: any[]) => {
+    return offenses
+      .filter(o => o.status !== 'paid')
+      .reduce((sum, o) => sum + o.fine, 0);
   };
 
   const getStatusColor = (status: string) => {
@@ -237,12 +248,6 @@ export function HomePage() {
     }
   };
 
-  const getTotalOwing = (offenses: any[]) => {
-    return offenses
-      .filter(o => o.status !== 'paid')
-      .reduce((sum, o) => sum + o.fine, 0);
-  };
-
   const closeLookup = () => {
     setLookupType(null);
     setSearchQuery('');
@@ -251,15 +256,15 @@ export function HomePage() {
   };
 
   return (
-    <div className="min-h-full" style={{ backgroundColor: '#F3F4F6' }}>
+    <div className="min-h-full bg-handheld-surface">
       {/* Header Section */}
-      <div className="pt-6 pb-8 px-4" style={{ backgroundColor: '#1A1F3A' }}>
+      <div className="pt-6 pb-8 px-4 bg-handheld-header">
         {/* Welcome & Status */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>Welcome back,</p>
+            <p className="text-sm text-white-60">Welcome back,</p>
             <h1 className="text-2xl font-bold text-white">{firstName}</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <p className="text-sm mt-0.5 text-white-50">
               {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
@@ -282,16 +287,16 @@ export function HomePage() {
         </div>
 
         {/* Today's Stats */}
-        <div className="p-4" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-          <p className="text-xs mb-3 uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.6)' }}>Today's Activity</p>
+        <div className="p-4 bg-white-10">
+          <p className="text-xs mb-3 uppercase tracking-wide text-white-60">Today's Activity</p>
           <div className="flex justify-between items-end">
             <div>
               <p className="text-4xl font-bold text-white">{todayStats.tickets}</p>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>Tickets Issued</p>
+              <p className="text-sm text-white-50">Tickets Issued</p>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-bold" style={{ color: '#F9A825' }}>{formatCurrency(todayStats.amount)}</p>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>Total Fines</p>
+              <p className="text-3xl font-bold text-accent">{formatCurrency(todayStats.amount)}</p>
+              <p className="text-sm text-white-50">Total Fines</p>
             </div>
           </div>
         </div>
@@ -311,7 +316,7 @@ export function HomePage() {
       )}
 
       {/* Main Content */}
-      <div className={cn('px-4 py-4 space-y-4', pendingCount === 0 && '-mt-4')} style={{ paddingLeft: '16px', paddingRight: '16px' }}>
+      <div className={cn('px-4 py-4 space-y-4', pendingCount === 0 && '-mt-4')}>
         
         {/* Lookup Section */}
         <div className="bg-white p-4">
@@ -324,12 +329,11 @@ export function HomePage() {
               className={cn(
                 'p-4 flex flex-col items-center gap-2 transition-colors',
                 lookupType === 'vehicle' 
-                  ? 'text-white' 
+                  ? 'text-white bg-primary-blue' 
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               )}
-              style={lookupType === 'vehicle' ? { backgroundColor: '#1A1F3A' } : undefined}
             >
-              <Car className="h-6 w-6" style={{ color: lookupType === 'vehicle' ? '#F9A825' : '#4B5563' }} />
+              <Car className={cn('h-6 w-6', lookupType === 'vehicle' ? 'text-accent' : 'text-gray-600')} />
               <span className="font-medium text-sm">Vehicle Lookup</span>
             </button>
             <button
@@ -337,12 +341,11 @@ export function HomePage() {
               className={cn(
                 'p-4 flex flex-col items-center gap-2 transition-colors',
                 lookupType === 'driver' 
-                  ? 'text-white' 
+                  ? 'text-white bg-primary-blue' 
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               )}
-              style={lookupType === 'driver' ? { backgroundColor: '#1A1F3A' } : undefined}
             >
-              <User className="h-6 w-6" style={{ color: lookupType === 'driver' ? '#F9A825' : '#4B5563' }} />
+              <User className={cn('h-6 w-6', lookupType === 'driver' ? 'text-accent' : 'text-gray-600')} />
               <span className="font-medium text-sm">Driver Lookup</span>
             </button>
           </div>
@@ -373,8 +376,7 @@ export function HomePage() {
                 <button
                   onClick={handleSearch}
                   disabled={!searchQuery.trim() || isSearching}
-                  className="h-12 px-5 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
-                  style={{ backgroundColor: '#1A1F3A' }}
+                  className="h-12 px-5 text-white font-semibold disabled:opacity-50 flex items-center gap-2 bg-primary-blue"
                   aria-label={`Search ${lookupType}`}
                 >
                   <Search className="h-5 w-5" aria-hidden="true" />
@@ -394,10 +396,7 @@ export function HomePage() {
         {/* Search Results */}
         {isSearching && (
           <div className="bg-white p-8 flex flex-col items-center justify-center">
-            <div 
-              className="w-8 h-8 border-3 border-t-transparent rounded-full animate-spin mb-3" 
-              style={{ borderColor: '#1A1F3A', borderTopColor: 'transparent' }}
-            />
+            <div className="w-8 h-8 border-3 border-primary-blue border-t-transparent rounded-full animate-spin mb-3" />
             <p className="text-gray-500">Searching...</p>
           </div>
         )}
@@ -417,10 +416,10 @@ export function HomePage() {
         {/* Vehicle Result */}
         {searchResult && lookupType === 'vehicle' && !isSearching && (
           <div className="bg-white overflow-hidden">
-            <div className="p-4" style={{ backgroundColor: '#1A1F3A' }}>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>VEHICLE</p>
+            <div className="p-4 bg-handheld-header">
+              <p className="text-xs text-white-60">VEHICLE</p>
               <p className="text-2xl font-bold text-white font-mono">{searchResult.registration}</p>
-              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              <p className="text-sm mt-1 text-white-70">
                 {searchResult.color} {searchResult.type} • {searchResult.make}
               </p>
             </div>
@@ -474,10 +473,10 @@ export function HomePage() {
         {/* Driver Result */}
         {searchResult && lookupType === 'driver' && !isSearching && (
           <div className="bg-white overflow-hidden">
-            <div className="p-4" style={{ backgroundColor: '#1A1F3A' }}>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>DRIVER</p>
+            <div className="p-4 bg-handheld-header">
+              <p className="text-xs text-white-60">DRIVER</p>
               <p className="text-2xl font-bold text-white">{searchResult.name}</p>
-              <p className="text-sm mt-1 font-mono" style={{ color: 'rgba(255,255,255,0.7)' }}>{searchResult.license}</p>
+              <p className="text-sm mt-1 font-mono text-white-70">{searchResult.license}</p>
             </div>
             
             <div className="p-4 bg-gray-50">
@@ -533,8 +532,7 @@ export function HomePage() {
               <h3 className="font-bold text-gray-900">Recent Tickets</h3>
               <button 
                 onClick={() => navigate('/handheld/history')}
-                className="text-sm font-semibold"
-                style={{ color: '#F9A825' }}
+                className="text-sm font-semibold text-accent"
               >
                 View All
               </button>
@@ -555,8 +553,7 @@ export function HomePage() {
       {/* Ticket Detail Modal */}
       {selectedTicket && (
         <div 
-          className="fixed inset-0 z-50 flex items-end"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          className="fixed inset-0 z-50 flex items-end bg-overlay"
           onClick={() => setSelectedTicket(null)}
         >
           <div 
@@ -564,9 +561,9 @@ export function HomePage() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 flex items-center justify-between" style={{ backgroundColor: '#1A1F3A' }}>
+            <div className="p-4 flex items-center justify-between bg-handheld-header">
               <div>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>TICKET</p>
+                <p className="text-xs text-white-60">TICKET</p>
                 <p className="text-xl font-bold text-white font-mono">{selectedTicket.id}</p>
               </div>
               <button 
@@ -574,18 +571,33 @@ export function HomePage() {
                 className="p-2"
                 aria-label="Close"
               >
-                <X className="h-6 w-6" style={{ color: '#F9A825' }} />
+                <X className="h-6 w-6 text-accent" />
               </button>
             </div>
 
             {/* Status */}
             {(() => {
-              const style = getStatusStyle(selectedTicket.status);
-              const Icon = style.icon;
+              const status = selectedTicket.status;
+              const Icon = getStatusIcon(status);
               return (
-                <div className="px-4 py-3 flex items-center gap-3" style={{ backgroundColor: style.bg }}>
-                  <Icon className="h-5 w-5" style={{ color: style.color }} />
-                  <span className="font-semibold capitalize" style={{ color: style.color }}>
+                <div className={cn(
+                  'px-4 py-3 flex items-center gap-3',
+                  status === 'paid' && 'bg-green-100',
+                  status === 'unpaid' && 'bg-amber-100',
+                  status === 'overdue' && 'bg-red-100'
+                )}>
+                  <Icon className={cn(
+                    'h-5 w-5',
+                    status === 'paid' && 'text-green-700',
+                    status === 'unpaid' && 'text-amber-700',
+                    status === 'overdue' && 'text-red-700'
+                  )} />
+                  <span className={cn(
+                    'font-semibold capitalize',
+                    status === 'paid' && 'text-green-700',
+                    status === 'unpaid' && 'text-amber-700',
+                    status === 'overdue' && 'text-red-700'
+                  )}>
                     {selectedTicket.status}
                   </span>
                 </div>
@@ -635,8 +647,7 @@ export function HomePage() {
                 </button>
                 <button 
                   onClick={() => handlePrint(selectedTicket)}
-                  className="flex-1 h-12 text-white font-semibold flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#1A1F3A' }}
+                  className="flex-1 h-12 text-white font-semibold flex items-center justify-center gap-2 bg-primary-blue"
                 >
                   <Printer className="h-5 w-5" />
                   Print Receipt
@@ -649,3 +660,5 @@ export function HomePage() {
     </div>
   );
 }
+
+export default HomePage;

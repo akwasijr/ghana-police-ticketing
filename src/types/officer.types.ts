@@ -28,6 +28,10 @@ export interface Station {
   phone: string;
   regionId: string;
   regionName: string;
+  divisionId: string;
+  divisionName: string;
+  districtId: string;
+  districtName: string;
   latitude?: number;
   longitude?: number;
   isActive: boolean;
@@ -69,6 +73,11 @@ export interface Officer {
   
   // Profile
   profilePhoto?: string;
+  
+  // Display helpers
+  stationName?: string;
+  status?: 'active' | 'inactive';
+  joinedDate?: string;
 }
 
 export interface User {

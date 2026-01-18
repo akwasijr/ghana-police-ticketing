@@ -17,6 +17,7 @@ import {
   Bell,
   Search,
   ChevronDown,
+  Scale,
 } from 'lucide-react';
 import { useAuthStore } from '@/store';
 import { cn } from '@/lib/utils';
@@ -30,7 +31,8 @@ const navItems = [
   { icon: Ticket, label: 'Tickets', path: '/dashboard/tickets' },
   { icon: CreditCard, label: 'Payments', path: '/dashboard/payments' },
   { icon: AlertTriangle, label: 'Objections', path: '/dashboard/objections' },
-  { icon: Users, label: 'Officers', path: '/dashboard/officers' },
+  { icon: Scale, label: 'Offences', path: '/dashboard/offences' },
+  { icon: Users, label: 'Personnel', path: '/dashboard/personnel' },
   { icon: BarChart3, label: 'Reports', path: '/dashboard/reports' },
   { icon: Settings, label: 'Settings', path: '/dashboard/settings' },
 ];
@@ -99,47 +101,41 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => {
-                    navigate(item.path);
-                    setSidebarOpen(false);
-                  }}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all',
-                    active
-                      ? 'bg-[#F9A825] text-[#1A1F3A]'
-                      : 'text-white/70 hover:bg-white/10 hover:text-white'
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="font-medium text-sm">{item.label}</span>
-                </button>
-              );
-            })}
+          <nav className="flex-1 py-6 px-4 overflow-y-auto">
+            <div className="space-y-3">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.path);
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => {
+                      navigate(item.path);
+                      setSidebarOpen(false);
+                    }}
+                    style={{
+                      backgroundColor: active ? '#ffffff' : 'transparent',
+                      color: active ? '#1A1F3A' : 'rgba(255, 255, 255, 0.7)',
+                      marginTop: active ? '0.5rem' : '0',
+                      marginBottom: active ? '0.5rem' : '0',
+                      marginRight: active ? '0.75rem' : '0',
+                      padding: active ? '0.75rem 1rem' : '0.75rem 1rem',
+                    }}
+                    className="w-full flex items-center gap-3 transition-all hover:bg-white/10"
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="font-medium text-sm">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </nav>
 
           {/* User & Logout */}
           <div className="p-4 border-t border-white/10">
-            {user && (
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-[#F9A825] flex items-center justify-center">
-                  <span className="text-[#1A1F3A] font-bold">{user.fullName.charAt(0)}</span>
-                </div>
-                <div>
-                  <p className="text-white text-sm font-medium">{user.fullName}</p>
-                  <p className="text-white/60 text-xs capitalize">{user.role}</p>
-                </div>
-              </div>
-            )}
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-white/70 hover:bg-white/10 hover:text-white transition-all"
             >
               <LogOut className="h-5 w-5" />
               <span className="font-medium text-sm">Sign Out</span>

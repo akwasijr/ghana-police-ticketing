@@ -1,25 +1,23 @@
 // Ticket Data Types
+// Note: For full Offence type with legal basis, points, etc., import from offence.types.ts
+
+import type { OffenceCategory } from './offence.types';
 
 export type TicketStatus = 'unpaid' | 'paid' | 'overdue' | 'objection' | 'cancelled';
 
-export type OffenceCategory = 
-  | 'speeding'
-  | 'parking'
-  | 'signal'
-  | 'documentation'
-  | 'safety'
-  | 'reckless'
-  | 'obstruction'
-  | 'other';
+// Re-export OffenceCategory for backward compatibility
+// Use OffenceCategory from offence.types.ts as the single source of truth
+export type TicketOffenceCategory = OffenceCategory;
 
-export interface Offence {
+// Simple offence for ticket (embedded in ticket document)
+export interface TicketOffence {
   id: string;
   category: OffenceCategory;
   name: string;
   fine: number;
 }
 
-export interface SelectedOffence extends Offence {
+export interface SelectedOffence extends TicketOffence {
   notes?: string;
   customFine?: number; // Officer can adjust fine within limits
 }
@@ -39,6 +37,18 @@ export interface TicketPhoto {
   timestamp: string;
   uploaded: boolean;
   remoteUrl?: string;
+}
+
+export interface TicketNote {
+  id: string;
+  content: string;
+  officerId: string;
+  officerName: string;
+  officerEmail?: string;
+  timestamp: string;
+  images?: TicketPhoto[];
+  edited?: boolean;
+  editedAt?: string;
 }
 
 export interface VehicleInfo {
@@ -102,7 +112,8 @@ export interface Ticket {
   
   // Evidence
   photos: TicketPhoto[];
-  notes?: string;
+  notes?: string; // Legacy field - deprecated
+  notesList?: TicketNote[]; // New field for structured notes with audit trail
   
   // Officer Info
   officerId: string;
@@ -110,6 +121,8 @@ export interface Ticket {
   officerBadgeNumber: string;
   stationId: string;
   stationName: string;
+  districtId?: string;
+  divisionId?: string;
   regionId: string;
   
   // Payment
@@ -163,7 +176,7 @@ export interface TicketFilters {
   regionId?: string;
   minAmount?: number;
   maxAmount?: number;
-  category?: OffenceCategory;
+  category?: TicketOffenceCategory;
   syncStatus?: 'pending' | 'synced' | 'failed';
 }
 
@@ -177,6 +190,15 @@ export interface TicketListItem {
   issuedAt: string;
   dueDate: string;
   officerName: string;
+  officerId?: string;
+  stationId?: string;
+  stationName?: string;
+  districtId?: string;
+  districtName?: string;
+  divisionId?: string;
+  divisionName?: string;
+  regionId?: string;
+  regionName?: string;
   offenceCount: number;
   syncStatus: 'pending' | 'synced' | 'failed';
 }

@@ -13,16 +13,16 @@ export function SettingsPage() {
 	const navigate = useNavigate();
 
 	return (
-		<div className="min-h-full flex flex-col" style={{ backgroundColor: '#F3F4F6' }}>
+		<div className="min-h-full flex flex-col bg-handheld-surface">
 			{/* Header */}
-			<div className="px-4 pt-4 pb-4" style={{ backgroundColor: '#1A1F3A' }}>
+			<div className="px-4 pt-4 pb-4 bg-handheld-header">
 				<div className="flex items-center gap-3">
 					<button 
 						onClick={() => navigate('/handheld')}
 						className="p-2 -ml-2"
 						aria-label="Go back"
 					>
-						<ChevronLeft className="h-6 w-6" style={{ color: '#F9A825' }} />
+						<ChevronLeft className="h-6 w-6 text-accent" />
 					</button>
 					<h1 className="text-xl font-bold text-white">Settings</h1>
 				</div>
@@ -33,8 +33,8 @@ export function SettingsPage() {
         
 				{/* App Settings */}
 				<div className="bg-white">
-					<div className="px-4 py-3" style={{ backgroundColor: '#F3F4F6' }}>
-						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">App Settings</p>
+					<div className="section-header">
+						<p className="section-header-text">App Settings</p>
 					</div>
 					<div className="p-4 space-y-4">
 						<button 
@@ -73,8 +73,8 @@ export function SettingsPage() {
 
 				{/* Support */}
 				<div className="bg-white">
-					<div className="px-4 py-3" style={{ backgroundColor: '#F3F4F6' }}>
-						<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Support</p>
+					<div className="section-header">
+						<p className="section-header-text">Support</p>
 					</div>
 					<div className="p-4 space-y-4">
 						<div className="flex items-center justify-between">
@@ -102,4 +102,6 @@ export function SettingsPage() {
 		</div>
 	);
 }
+
+export default SettingsPage;
 

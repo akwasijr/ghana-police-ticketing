@@ -1,6 +1,7 @@
 // Ticket Store - for managing ticket creation and listing
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { 
   Ticket, 
   TicketListItem, 
@@ -63,7 +64,25 @@ interface TicketState {
   // Computed
   getTotalFine: () => number;
   isFormValid: () => boolean;
+  
+  // Submit action - creates ticket from form and adds to list
+  submitTicket: (officerInfo: { 
+    id: string; 
+    name: string; 
+    badgeNumber?: string;
+    stationId?: string;
+    stationName?: string;
+    regionId?: string;
+    regionName?: string;
+  }) => TicketListItem;
 }
+
+// Helper to generate ticket number
+const generateTicketNumber = () => {
+  const year = new Date().getFullYear();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `GPS-${year}-${random}`;
+};
 
 const initialNewTicketState: NewTicketState = {
   currentStep: 0,
@@ -75,7 +94,9 @@ const initialNewTicketState: NewTicketState = {
   notes: '',
 };
 
-export const useTicketStore = create<TicketState>((set, get) => ({
+export const useTicketStore = create<TicketState>()(
+  persist(
+    (set, get) => ({
   // Initial state
   tickets: [],
   selectedTicket: null,
@@ -223,7 +244,52 @@ export const useTicketStore = create<TicketState>((set, get) => ({
     const { vehicle, offences } = get().newTicket;
     return !!vehicle.registrationNumber && offences.length > 0;
   },
-}));
+  
+  // Submit ticket - creates a full ticket from form data and adds to list
+  submitTicket: (officerInfo) => {
+    const { newTicket } = get();
+    const now = new Date();
+    const dueDate = new Date(now);
+    dueDate.setDate(dueDate.getDate() + 14); // 14 days to pay
+    
+    const ticketNumber = generateTicketNumber();
+    const totalFine = get().getTotalFine();
+    
+    const ticket: TicketListItem = {
+      id: `TKT-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      ticketNumber,
+      vehicleReg: newTicket.vehicle.registrationNumber || 'UNKNOWN',
+      status: 'unpaid',
+      totalFine,
+      issuedAt: now.toISOString(),
+      dueDate: dueDate.toISOString(),
+      officerName: officerInfo.name,
+      officerId: officerInfo.id,
+      stationId: officerInfo.stationId,
+      stationName: officerInfo.stationName,
+      regionId: officerInfo.regionId,
+      regionName: officerInfo.regionName,
+      offenceCount: newTicket.offences.length,
+      syncStatus: 'pending',
+    };
+    
+    // Add to tickets list
+    get().addTicket(ticket);
+    
+    // Reset the form
+    get().resetNewTicket();
+    
+    return ticket;
+  },
+    }),
+    {
+      name: 'ghana-police-tickets',
+      partialize: (state) => ({
+        tickets: state.tickets,
+      }),
+    }
+  )
+);
 
 // Selector hooks
 export const useNewTicket = () => useTicketStore((state) => state.newTicket);

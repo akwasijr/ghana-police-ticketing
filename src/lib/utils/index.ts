@@ -251,3 +251,4 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 export * from './device-detect';
 export * from './validation';
 export * from './formatting';
+export * from './logger';

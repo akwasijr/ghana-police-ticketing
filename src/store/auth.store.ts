@@ -5,6 +5,14 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User, AuthTokens, AuthSession } from '@/types/officer.types';
 import type { InterfaceMode } from '@/types';
 
+export type JurisdictionLevel = 'station' | 'district' | 'division' | 'region' | 'national';
+
+export interface JurisdictionScope {
+  level: JurisdictionLevel;
+  id: string;
+  name: string;
+}
+
 interface AuthState {
   // State
   user: User | null;
@@ -12,6 +20,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   interfaceMode: InterfaceMode;
+  jurisdiction: JurisdictionScope | null;
   
   // Actions
   setUser: (user: User | null) => void;
@@ -19,6 +28,7 @@ interface AuthState {
   setSession: (session: AuthSession) => void;
   setInterfaceMode: (mode: InterfaceMode) => void;
   setLoading: (loading: boolean) => void;
+  setJurisdiction: (jurisdiction: JurisdictionScope | null) => void;
   logout: () => void;
   
   // Computed helpers
@@ -36,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: true,
       interfaceMode: 'dashboard',
+      jurisdiction: null,
       
       // Actions
       setUser: (user) => 
@@ -61,6 +72,9 @@ export const useAuthStore = create<AuthState>()(
       
       setLoading: (isLoading) => 
         set({ isLoading }),
+
+      setJurisdiction: (jurisdiction) =>
+        set({ jurisdiction }),
       
       logout: () => 
         set({
@@ -68,6 +82,7 @@ export const useAuthStore = create<AuthState>()(
           tokens: null,
           isAuthenticated: false,
           isLoading: false,
+          jurisdiction: null,
         }),
       
       // Computed helpers
@@ -103,6 +118,7 @@ export const useAuthStore = create<AuthState>()(
         tokens: state.tokens,
         isAuthenticated: state.isAuthenticated,
         interfaceMode: state.interfaceMode,
+        jurisdiction: state.jurisdiction,
       }),
     }
   )
@@ -113,3 +129,4 @@ export const useUser = () => useAuthStore((state) => state.user);
 export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenticated);
 export const useInterfaceMode = () => useAuthStore((state) => state.interfaceMode);
 export const useIsHandheld = () => useAuthStore((state) => state.interfaceMode === 'handheld');
+export const useJurisdiction = () => useAuthStore((state) => state.jurisdiction);

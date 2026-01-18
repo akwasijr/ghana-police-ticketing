@@ -1,14 +1,52 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store';
+import { PageLoader } from '@/components/shared/LoadingSpinner';
 
-// Layouts
-import { HandheldLayout, DashboardLayout } from '@/components/layouts';
+// Layouts - Keep synchronous for shell stability
+import { HandheldLayout, DashboardLayout, SuperAdminLayout } from '@/components/layouts';
 
-// Pages
-import { LoginPage } from '@/pages/auth';
-import { HomePage, NewTicketPage, HistoryPage, PrinterPage, ProfilePage, SettingsPage } from '@/pages/handheld';
-import { DashboardHome } from '@/pages/dashboard';
+// Auth pages - Keep synchronous for fast initial load
+import { LoginPage, LauncherPage } from '@/pages/auth';
+
+// ============================================================
+// LAZY LOADED PAGES - Code splitting for better performance
+// ============================================================
+
+// Handheld Pages
+const HomePage = lazy(() => import('@/pages/handheld/HomePage'));
+const NewTicketPage = lazy(() => import('@/pages/handheld/NewTicketPage'));
+const HistoryPage = lazy(() => import('@/pages/handheld/HistoryPage'));
+const PrinterPage = lazy(() => import('@/pages/handheld/PrinterPage'));
+const HandheldProfilePage = lazy(() => import('@/pages/handheld/ProfilePage'));
+const HandheldSettingsPage = lazy(() => import('@/pages/handheld/SettingsPage'));
+
+// Dashboard Pages
+const DashboardHome = lazy(() => import('@/pages/dashboard/DashboardHome'));
+const MapPage = lazy(() => import('@/pages/dashboard/MapPage'));
+const TicketsPage = lazy(() => import('@/pages/dashboard/TicketsPage'));
+const PaymentsPage = lazy(() => import('@/pages/dashboard/PaymentsPage'));
+const ObjectionsPage = lazy(() => import('@/pages/dashboard/ObjectionsPage'));
+const OffencesPage = lazy(() => import('@/pages/dashboard/OffencesPage'));
+const PersonnelPage = lazy(() => import('@/pages/dashboard/PersonnelPage'));
+const ReportsPage = lazy(() => import('@/pages/dashboard/ReportsPage'));
+const DashboardSettingsPage = lazy(() => import('@/pages/dashboard/SettingsPage'));
+const DashboardProfilePage = lazy(() => import('@/pages/dashboard/ProfilePage'));
+
+// Super Admin Pages
+const SuperAdminDashboard = lazy(() => import('@/pages/super-admin/SuperAdminDashboard'));
+const RegionsPage = lazy(() => import('@/pages/super-admin/RegionsPage'));
+const SuperAdminStationsPage = lazy(() => import('@/pages/super-admin/StationsPage'));
+const SuperAdminOfficersPage = lazy(() => import('@/pages/super-admin/OfficersPage'));
+const AuditLogsPage = lazy(() => import('@/pages/super-admin/AuditLogsPage'));
+const SuperAdminSettingsPage = lazy(() => import('@/pages/super-admin/SettingsPage'));
+
+// Suspense wrapper for lazy components
+const LazyPage: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Suspense fallback={<PageLoader message="Loading page..." />}>
+    {children}
+  </Suspense>
+);
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -36,31 +74,44 @@ export function AppRouter() {
 
         {/* Handheld routes */}
         <Route path="/handheld" element={<ProtectedRoute><HandheldLayout /></ProtectedRoute>}>
-          <Route index element={<HomePage />} />
-          <Route path="new-ticket" element={<NewTicketPage />} />
-          <Route path="history" element={<HistoryPage />} />
-          <Route path="printer" element={<PrinterPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route index element={<LazyPage><HomePage /></LazyPage>} />
+          <Route path="new-ticket" element={<LazyPage><NewTicketPage /></LazyPage>} />
+          <Route path="history" element={<LazyPage><HistoryPage /></LazyPage>} />
+          <Route path="printer" element={<LazyPage><PrinterPage /></LazyPage>} />
+          <Route path="profile" element={<LazyPage><HandheldProfilePage /></LazyPage>} />
+          <Route path="settings" element={<LazyPage><HandheldSettingsPage /></LazyPage>} />
           <Route path="reports" element={<PlaceholderPage title="Reports" />} />
         </Route>
 
         {/* Dashboard routes */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-          <Route index element={<DashboardHome />} />
-          <Route path="tickets" element={<PlaceholderPage title="Tickets Management" />} />
-          <Route path="payments" element={<PlaceholderPage title="Payments" />} />
-          <Route path="objections" element={<PlaceholderPage title="Objections" />} />
-          <Route path="officers" element={<PlaceholderPage title="Officers" />} />
-          <Route path="reports" element={<PlaceholderPage title="Reports" />} />
-          <Route path="settings" element={<PlaceholderPage title="Settings" />} />
+          <Route index element={<LazyPage><DashboardHome /></LazyPage>} />
+          <Route path="map" element={<LazyPage><MapPage /></LazyPage>} />
+          <Route path="tickets" element={<LazyPage><TicketsPage /></LazyPage>} />
+          <Route path="payments" element={<LazyPage><PaymentsPage /></LazyPage>} />
+          <Route path="objections" element={<LazyPage><ObjectionsPage /></LazyPage>} />
+          <Route path="offences" element={<LazyPage><OffencesPage /></LazyPage>} />
+          <Route path="personnel" element={<LazyPage><PersonnelPage /></LazyPage>} />
+          <Route path="reports" element={<LazyPage><ReportsPage /></LazyPage>} />
+          <Route path="settings" element={<LazyPage><DashboardSettingsPage /></LazyPage>} />
           <Route path="help" element={<PlaceholderPage title="Help & Support" />} />
-          <Route path="profile" element={<PlaceholderPage title="Profile" />} />
+          <Route path="profile" element={<LazyPage><DashboardProfilePage /></LazyPage>} />
         </Route>
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Super Admin routes */}
+        <Route path="/super-admin" element={<ProtectedRoute><SuperAdminLayout /></ProtectedRoute>}>
+          <Route index element={<LazyPage><SuperAdminDashboard /></LazyPage>} />
+          <Route path="regions" element={<LazyPage><RegionsPage /></LazyPage>} />
+          <Route path="stations" element={<LazyPage><SuperAdminStationsPage /></LazyPage>} />
+          <Route path="officers" element={<LazyPage><SuperAdminOfficersPage /></LazyPage>} />
+          <Route path="offences" element={<LazyPage><OffencesPage /></LazyPage>} />
+          <Route path="audit-logs" element={<LazyPage><AuditLogsPage /></LazyPage>} />
+          <Route path="settings" element={<LazyPage><SuperAdminSettingsPage /></LazyPage>} />
+        </Route>
+
+        {/* Default redirect - Launcher */}
+        <Route path="/" element={<LauncherPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

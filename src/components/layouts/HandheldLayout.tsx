@@ -39,7 +39,7 @@ export function HandheldLayout({ children }: HandheldLayoutProps) {
   const hideBottomNav = location.pathname.includes('/new-ticket');
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F3F4F6' }}>
+    <div className="min-h-screen flex flex-col bg-handheld-surface">
       {/* Main content */}
       <main className={cn('flex-1 overflow-auto', !hideBottomNav && 'pb-24')}>
         {children || <Outlet />}
@@ -48,22 +48,23 @@ export function HandheldLayout({ children }: HandheldLayoutProps) {
       {/* Bottom navigation - hidden on form pages */}
       {!hideBottomNav && (
         <nav className="fixed bottom-0 left-0 right-0 bg-white px-4 pb-safe pt-2 border-t border-gray-100 z-40">
-          <div className="flex items-center justify-between h-16 max-w-md mx-auto relative">
+          <div className="flex items-center justify-between h-16 max-w-md mx-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.path);
               
               if (item.isMain) {
                 return (
-                  <div key={item.path} className="relative -top-8">
-                    <button
-                      onClick={() => navigate(item.path)}
-                      className="flex items-center justify-center w-16 h-16 bg-[#1A1F3A] rounded-full shadow-lg shadow-blue-900/30 active:scale-95 transition-all duration-200 border-4 border-[#F3F4F6]"
-                      aria-label="New Ticket"
-                    >
-                      <Icon className="h-8 w-8 text-[#F9A825]" />
-                    </button>
-                  </div>
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    className="flex flex-col items-center justify-center w-16 py-1"
+                    aria-label="New Ticket"
+                  >
+                    <div className="flex items-center justify-center w-12 h-12 bg-[#1A1F3A] rounded-full">
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                  </button>
                 );
               }
               

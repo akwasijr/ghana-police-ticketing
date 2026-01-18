@@ -1,0 +1,253 @@
+// Mock Offences Data
+import type { Offence, OffenceCategory } from '@/types';
+
+export const MOCK_OFFENCES: Offence[] = [
+  // Speed Violations
+  {
+    id: 'off-001',
+    code: 'SPD-001',
+    name: 'Exceeding Speed Limit',
+    description: 'Driving above the posted speed limit in a designated zone',
+    legalBasis: 'Road Traffic Act 2004 (Act 683), Section 15(1)',
+    category: 'speed' as OffenceCategory,
+    defaultFine: 200,
+    minFine: 100,
+    maxFine: 500,
+    points: 3,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-002',
+    code: 'SPD-002',
+    name: 'Reckless Speeding',
+    description: 'Driving at excessive speed endangering other road users',
+    legalBasis: 'Road Traffic Act 2004 (Act 683), Section 15(2)',
+    category: 'speed' as OffenceCategory,
+    defaultFine: 500,
+    minFine: 300,
+    maxFine: 1000,
+    points: 6,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // Traffic Signal Violations
+  {
+    id: 'off-003',
+    code: 'TRF-001',
+    name: 'Red Light Violation',
+    description: 'Failing to stop at a red traffic signal',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 42',
+    category: 'traffic_signal' as OffenceCategory,
+    defaultFine: 300,
+    minFine: 200,
+    maxFine: 600,
+    points: 4,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-004',
+    code: 'TRF-002',
+    name: 'Failure to Obey Traffic Signs',
+    description: 'Ignoring or disobeying mandatory traffic signs',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 38',
+    category: 'traffic_signal' as OffenceCategory,
+    defaultFine: 150,
+    minFine: 100,
+    maxFine: 400,
+    points: 2,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // Documentation Offences
+  {
+    id: 'off-005',
+    code: 'DOC-001',
+    name: 'Driving Without License',
+    description: 'Operating a motor vehicle without a valid driver\'s license',
+    legalBasis: 'Road Traffic Act 2004 (Act 683), Section 30',
+    category: 'licensing' as OffenceCategory,
+    defaultFine: 400,
+    minFine: 200,
+    maxFine: 800,
+    points: 6,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-006',
+    code: 'DOC-002',
+    name: 'Expired Vehicle Registration',
+    description: 'Operating a vehicle with expired registration',
+    legalBasis: 'Road Traffic Act 2004 (Act 683), Section 8',
+    category: 'documentation' as OffenceCategory,
+    defaultFine: 250,
+    minFine: 150,
+    maxFine: 500,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-007',
+    code: 'DOC-003',
+    name: 'No Insurance',
+    description: 'Driving without valid third-party insurance',
+    legalBasis: 'Motor Vehicles (Third Party Insurance) Act 1958, Section 1',
+    category: 'documentation' as OffenceCategory,
+    defaultFine: 500,
+    minFine: 300,
+    maxFine: 1000,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // Vehicle Condition
+  {
+    id: 'off-008',
+    code: 'VEH-001',
+    name: 'No Seatbelt',
+    description: 'Driver or passenger not wearing a seatbelt',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 115',
+    category: 'vehicle_condition' as OffenceCategory,
+    defaultFine: 100,
+    minFine: 50,
+    maxFine: 200,
+    points: 2,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-009',
+    code: 'VEH-002',
+    name: 'Defective Lights',
+    description: 'Operating a vehicle with non-functional headlights or taillights',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 96',
+    category: 'vehicle_condition' as OffenceCategory,
+    defaultFine: 150,
+    minFine: 100,
+    maxFine: 300,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // Dangerous Driving
+  {
+    id: 'off-010',
+    code: 'DNG-001',
+    name: 'Using Mobile Phone While Driving',
+    description: 'Operating a mobile phone without hands-free while driving',
+    legalBasis: 'Road Traffic Act 2004 (Act 683), Section 15(3)',
+    category: 'dangerous_driving' as OffenceCategory,
+    defaultFine: 200,
+    minFine: 150,
+    maxFine: 400,
+    points: 3,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-011',
+    code: 'DNG-002',
+    name: 'Drunk Driving',
+    description: 'Operating a vehicle while under the influence of alcohol',
+    legalBasis: 'Road Traffic Act 2004 (Act 683), Section 16',
+    category: 'dangerous_driving' as OffenceCategory,
+    defaultFine: 1000,
+    minFine: 500,
+    maxFine: 2000,
+    points: 10,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-012',
+    code: 'DNG-003',
+    name: 'Dangerous Overtaking',
+    description: 'Overtaking in a prohibited zone or in a dangerous manner',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 54',
+    category: 'dangerous_driving' as OffenceCategory,
+    defaultFine: 300,
+    minFine: 200,
+    maxFine: 600,
+    points: 4,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // Parking Violations
+  {
+    id: 'off-013',
+    code: 'PRK-001',
+    name: 'Illegal Parking',
+    description: 'Parking in a no-parking zone or prohibited area',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 66',
+    category: 'parking' as OffenceCategory,
+    defaultFine: 100,
+    minFine: 50,
+    maxFine: 200,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-014',
+    code: 'PRK-002',
+    name: 'Double Parking',
+    description: 'Parking alongside another parked vehicle blocking traffic',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 67',
+    category: 'parking' as OffenceCategory,
+    defaultFine: 150,
+    minFine: 100,
+    maxFine: 300,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'off-015',
+    code: 'PRK-003',
+    name: 'Parking in Handicap Zone',
+    description: 'Parking in a zone designated for persons with disabilities without permit',
+    legalBasis: 'Road Traffic Regulations 2012 (L.I. 2180), Regulation 68',
+    category: 'parking' as OffenceCategory,
+    defaultFine: 300,
+    minFine: 200,
+    maxFine: 500,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+// Helpers
+export const getOffencesByCategory = (category: OffenceCategory): Offence[] => {
+  return MOCK_OFFENCES.filter(o => o.category === category);
+};
+
+export const getActiveOffences = (): Offence[] => {
+  return MOCK_OFFENCES.filter(o => o.isActive);
+};
+
+export const getOffenceStats = () => {
+  const total = MOCK_OFFENCES.length;
+  const active = MOCK_OFFENCES.filter(o => o.isActive).length;
+  
+  const byCategory: Record<string, number> = {};
+  MOCK_OFFENCES.forEach(o => {
+    byCategory[o.category] = (byCategory[o.category] || 0) + 1;
+  });
+  
+  const avgFine = MOCK_OFFENCES.reduce((sum, o) => sum + o.defaultFine, 0) / total;
+  
+  return { total, active, inactive: total - active, byCategory, avgFine: Math.round(avgFine) };
+};

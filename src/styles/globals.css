@@ -281,3 +281,80 @@ a:hover {
 .safe-area-inset-right {
   padding-right: env(safe-area-inset-right);
 }
+
+/* ============================================
+   Handheld Component Utility Classes
+   ============================================ */
+
+/* Backgrounds */
+.bg-handheld-surface {
+  background-color: #F3F4F6;
+}
+
+.bg-handheld-header {
+  background-color: var(--color-primary-blue);
+}
+
+.bg-handheld-card-dark {
+  background-color: var(--color-primary-blue);
+}
+
+.bg-white-10 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.bg-white-20 {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.bg-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.bg-error-light {
+  background-color: #FEE2E2;
+}
+
+/* Text Colors */
+.text-white-50 {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.text-white-60 {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.text-white-70 {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.text-accent {
+  color: var(--color-primary-yellow);
+}
+
+.text-blue-primary {
+  color: var(--color-primary-blue);
+}
+
+/* Icon Colors (for stroke/fill) */
+.icon-accent {
+  color: var(--color-primary-yellow);
+}
+
+.icon-blue {
+  color: var(--color-primary-blue);
+}
+
+/* Section Header */
+.section-header {
+  background-color: #F3F4F6;
+  padding: 0.75rem 1rem;
+}
+
+.section-header-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6B7280;
+}

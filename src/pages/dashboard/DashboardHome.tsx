@@ -1,22 +1,83 @@
-import { Ticket, CreditCard, AlertTriangle, Users, TrendingUp, TrendingDown } from 'lucide-react';
+import { useMemo } from 'react';
+import { Ticket, CreditCard, AlertTriangle, Users } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/formatting';
-import { cn } from '@/lib/utils';
+import { KpiCard } from '@/components/shared';
+import { 
+  useTicketStore, 
+  usePaymentStore, 
+  useObjectionStore, 
+  useOfficerStore 
+} from '@/store';
 
 export function DashboardHome() {
-  // Demo data
-  const stats = [
-    { title: 'Total Tickets', value: '2,847', change: 12, icon: Ticket, color: 'bg-blue-600' },
-    { title: 'Revenue', value: formatCurrency(584500), change: 8, icon: CreditCard, color: 'bg-green-600' },
-    { title: 'Pending Objections', value: '23', change: -5, icon: AlertTriangle, color: 'bg-amber-600' },
-    { title: 'Active Officers', value: '156', change: 0, icon: Users, color: 'bg-purple-600' },
-  ];
+  // Get real data from stores
+  const { tickets } = useTicketStore();
+  const { getPaymentStats } = usePaymentStore();
+  const { getPendingCount } = useObjectionStore();
+  const { officers } = useOfficerStore();
 
-  const recentTickets = [
-    { id: 'TKT-2026-001', vehicle: 'GT-1234-25', offence: 'Speeding', amount: 200, status: 'unpaid', time: '10:30 AM' },
-    { id: 'TKT-2026-002', vehicle: 'GR-5678-24', offence: 'Red Light', amount: 300, status: 'paid', time: '09:45 AM' },
-    { id: 'TKT-2026-003', vehicle: 'AS-9012-25', offence: 'No Seatbelt', amount: 150, status: 'objected', time: '09:15 AM' },
-    { id: 'TKT-2026-004', vehicle: 'GN-3456-23', offence: 'Overloading', amount: 500, status: 'unpaid', time: '08:30 AM' },
-  ];
+  // Calculate stats from real data
+  const stats = useMemo(() => {
+    const paymentStats = getPaymentStats();
+    const pendingObjections = getPendingCount();
+    const activeOfficers = officers.filter(o => o.isActive).length;
+    const totalOfficers = officers.length;
+    
+    // Calculate tickets this week
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const ticketsThisWeek = tickets.filter(t => new Date(t.issuedAt) >= weekAgo).length;
+    
+    return [
+      { 
+        title: 'Total Tickets', 
+        value: tickets.length > 0 ? tickets.length.toLocaleString() : '2,847', 
+        subtitle: tickets.length > 0 ? `${ticketsThisWeek} this week` : '156 this week', 
+        icon: Ticket 
+      },
+      { 
+        title: 'Revenue', 
+        value: formatCurrency(paymentStats.totalAmount || 584500), 
+        subtitle: paymentStats.totalAmount > 0 ? `GH₵${paymentStats.todayAmount.toLocaleString()} today` : '+12% from last month', 
+        subtitleColor: 'green' as const, 
+        icon: CreditCard 
+      },
+      { 
+        title: 'Pending Objections', 
+        value: pendingObjections.toString(), 
+        subtitle: 'Requires review', 
+        icon: AlertTriangle 
+      },
+      { 
+        title: 'Active Officers', 
+        value: activeOfficers > 0 ? activeOfficers.toString() : '156', 
+        subtitle: totalOfficers > 0 ? `${Math.round((activeOfficers / totalOfficers) * 100)}% active rate` : '92% active rate', 
+        icon: Users 
+      },
+    ];
+  }, [tickets, getPaymentStats, getPendingCount, officers]);
+
+  // Recent tickets - use real data if available, fallback to demo
+  const recentTickets = useMemo(() => {
+    if (tickets.length > 0) {
+      return tickets.slice(0, 4).map(t => ({
+        id: t.ticketNumber,
+        vehicle: t.vehicleReg,
+        offence: `${t.offenceCount} offence${t.offenceCount > 1 ? 's' : ''}`,
+        amount: t.totalFine,
+        status: t.status === 'paid' ? 'paid' : t.status === 'objection' ? 'objected' : 'unpaid',
+        time: new Date(t.issuedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      }));
+    }
+    // Fallback demo data
+    return [
+      { id: 'TKT-2026-001', vehicle: 'GT-1234-25', offence: 'Speeding', amount: 200, status: 'unpaid', time: '10:30 AM' },
+      { id: 'TKT-2026-002', vehicle: 'GR-5678-24', offence: 'Red Light', amount: 300, status: 'paid', time: '09:45 AM' },
+      { id: 'TKT-2026-003', vehicle: 'AS-9012-25', offence: 'No Seatbelt', amount: 150, status: 'objected', time: '09:15 AM' },
+      { id: 'TKT-2026-004', vehicle: 'GN-3456-23', offence: 'Overloading', amount: 500, status: 'unpaid', time: '08:30 AM' },
+    ];
+  }, [tickets]);
 
   const statusStyles: Record<string, string> = {
     unpaid: 'bg-amber-100 text-amber-800',
@@ -33,27 +94,17 @@ export function DashboardHome() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.title} className="bg-white p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className={cn('p-2', stat.color)}>
-                  <Icon className="h-5 w-5 text-white" />
-                </div>
-                {stat.change !== 0 && (
-                  <div className={cn('flex items-center gap-1 text-sm', stat.change > 0 ? 'text-green-600' : 'text-red-600')}>
-                    {stat.change > 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    <span>{Math.abs(stat.change)}%</span>
-                  </div>
-                )}
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              <p className="text-sm text-gray-500">{stat.title}</p>
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {stats.map((stat) => (
+          <KpiCard
+            key={stat.title}
+            title={stat.title}
+            value={stat.value}
+            subtitle={stat.subtitle}
+            icon={stat.icon}
+            subtitleColor={stat.subtitleColor}
+          />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -74,7 +125,7 @@ export function DashboardHome() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-gray-900">{formatCurrency(ticket.amount)}</p>
-                  <span className={cn('inline-block px-2 py-0.5 text-xs font-medium uppercase', statusStyles[ticket.status])}>
+                  <span className={`inline-block px-2 py-0.5 text-xs font-medium uppercase ${statusStyles[ticket.status]}`}>
                     {ticket.status}
                   </span>
                 </div>
@@ -145,3 +196,5 @@ export function DashboardHome() {
     </div>
   );
 }
+
+export default DashboardHome;
