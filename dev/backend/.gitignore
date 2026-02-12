@@ -1,0 +1,32 @@
+# Binaries
+server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment (keep .env.example, ignore .env)
+deployments/.env
+.env
+
+# Uploads
+uploads/
+
+# OS
+.DS_Store
