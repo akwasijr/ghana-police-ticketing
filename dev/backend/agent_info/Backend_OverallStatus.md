@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 1 Complete
+## Current Status: Phase 2 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -37,10 +37,23 @@
 | `migrations/000001_*.sql` | Hierarchy tables + seeds |
 | `deployments/docker-compose.yml` | Docker orchestration |
 
-### Next: Phase 2 — Authentication & Core Middleware
-- User/Officer/RefreshToken models & migration
-- JWT token generation/validation (`pkg/jwt/`)
-- Bcrypt password hashing (`pkg/hash/`)
-- Auth service (login, logout, refresh, profile)
-- Auth handler (8 endpoints per `01_auth_api.yaml`)
-- Auth middleware (JWT validation, context injection)
+### Phase 2: Authentication & Core Middleware - COMPLETE
+- `internal/domain/models/user.go`: User, Officer, OfficerInfo, RefreshToken, UserResponse, RankDisplayMap (16 ranks)
+- `migrations/000002`: users, officers, refresh_tokens tables + super admin seed (admin@ghanapolice.gov.gh / Admin@2026!)
+- `pkg/jwt/jwt.go`: JWT Manager with HS256 signing — GenerateAccessToken (with role/officer/station/region claims), ValidateToken, GenerateRefreshToken
+- `pkg/hash/hash.go`: bcrypt HashPassword/CheckPassword + SHA-256 HashToken for refresh tokens
+- `internal/ports/repositories/user_repository.go`: 10-method interface (FindByEmail/BadgeNumber/ID, UpdateLastLogin/Profile/Password, token CRUD)
+- `internal/adapters/repositories/postgres/user_repo.go`: Full implementation with JOIN query (users + officers + stations)
+- `internal/ports/services/auth_service.go`: AuthService interface + request/result types
+- `internal/services/auth_service.go`: Login (email/badge), logout (single/all tokens), refresh, profile GET/PUT, change-password; failed login tracking with account lockout (5 attempts → 30min lock)
+- `internal/adapters/handlers/auth_handler.go`: 8 endpoints (login, logout, refresh, profile GET/PUT, change-password, forgot-password, reset-password)
+- `internal/middleware/auth.go`: JWT validation middleware + context helpers (GetUserID, GetUserRole, GetOfficerID, GetStationID, GetRegionID)
+- Routes: public (login, refresh, forgot/reset-password), protected (logout, profile, change-password)
+- Verified: login returns tokens, profile works with Bearer, refresh issues new token, logout revokes, 401 on invalid
+
+### Next: Phase 3 — Hierarchy & Offence Management
+- Offence model + migration (offences, vehicle_types, core ticket tables)
+- Hierarchy CRUD (21 endpoints — regions/divisions/districts/stations)
+- Offence CRUD (6 endpoints)
+- RBAC middleware (permission → role mapping)
+- Pagination utility

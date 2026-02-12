@@ -55,34 +55,34 @@
 **Goal:** Login as super admin, JWT tokens work, protected endpoints enforce auth.
 
 ### 2.1 Domain Models
-- [ ] `internal/domain/models/user.go` — User, Officer, RefreshToken structs
+- [x] `internal/domain/models/user.go` — User, Officer, RefreshToken structs
 
 ### 2.2 Database Migration
-- [ ] `migrations/000002_create_user_tables.up.sql` — users, officers, refresh_tokens + super admin seed
-- [ ] `migrations/000002_create_user_tables.down.sql`
+- [x] `migrations/000002_create_user_tables.up.sql` — users, officers, refresh_tokens + super admin seed
+- [x] `migrations/000002_create_user_tables.down.sql`
 
 ### 2.3 Auth Utilities
-- [ ] `pkg/jwt/jwt.go` — GenerateAccessToken, ValidateToken, GenerateRefreshToken
-- [ ] `pkg/hash/hash.go` — HashPassword, CheckPassword (bcrypt)
+- [x] `pkg/jwt/jwt.go` — GenerateAccessToken, ValidateToken, GenerateRefreshToken
+- [x] `pkg/hash/hash.go` — HashPassword, CheckPassword (bcrypt)
 
 ### 2.4 Repository Layer
-- [ ] `internal/ports/repositories/user_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/user_repo.go` — implementation
+- [x] `internal/ports/repositories/user_repository.go` — interface
+- [x] `internal/adapters/repositories/postgres/user_repo.go` — implementation
 
 ### 2.5 Service Layer
-- [ ] `internal/ports/services/auth_service.go` — interface
-- [ ] `internal/services/auth_service.go` — login, logout, refresh, profile
+- [x] `internal/ports/services/auth_service.go` — interface
+- [x] `internal/services/auth_service.go` — login, logout, refresh, profile
 
 ### 2.6 Handler & Routes
-- [ ] `internal/adapters/handlers/auth_handler.go` — 8 routes per `01_auth_api.yaml`
-- [ ] `internal/middleware/auth.go` — JWT validation, context injection
+- [x] `internal/adapters/handlers/auth_handler.go` — 8 routes per `01_auth_api.yaml`
+- [x] `internal/middleware/auth.go` — JWT validation, context injection
 
 ### 2.7 Build & Verify
-- [ ] Login with super admin returns tokens
-- [ ] Profile endpoint works with Bearer token
-- [ ] Refresh issues new access token
-- [ ] Logout revokes refresh token
-- [ ] 401 on invalid/expired tokens
+- [x] Login with super admin returns tokens
+- [x] Profile endpoint works with Bearer token
+- [x] Refresh issues new access token
+- [x] Logout revokes refresh token
+- [x] 401 on invalid/expired tokens
 
 ---
 
