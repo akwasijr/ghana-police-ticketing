@@ -90,37 +90,41 @@
 **Goal:** Full CRUD for regions/divisions/districts/stations, offence catalog, RBAC.
 
 ### 3.1 Domain Models
-- [ ] `internal/domain/models/offence.go` — Offence struct
+- [x] `internal/domain/models/offence.go` — Offence, VehicleType structs
 
 ### 3.2 Database Migrations
-- [ ] `migrations/000003_create_core_tables.up.sql` — offences, vehicle_types, tickets, ticket_offences, ticket_photos, ticket_notes, ticket_number_seq
-- [ ] `migrations/000003_create_core_tables.down.sql`
-- [ ] `migrations/000006_seed_data.up.sql` — offences, vehicle_types, system_settings seeds
-- [ ] `migrations/000006_seed_data.down.sql`
+- [x] `migrations/000003_create_core_tables.up.sql` — offences, vehicle_types, tickets, ticket_offences, ticket_photos, ticket_notes, ticket_number_seq
+- [x] `migrations/000003_create_core_tables.down.sql`
+- [x] `migrations/000004_seed_offences_vehicle_types.up.sql` — 15 offences, 10 vehicle types
+- [x] `migrations/000004_seed_offences_vehicle_types.down.sql`
 
 ### 3.3 Repository Layer
-- [ ] `internal/ports/repositories/hierarchy_repository.go` — interface
-- [ ] `internal/ports/repositories/offence_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/hierarchy_repo.go`
-- [ ] `internal/adapters/repositories/postgres/offence_repo.go`
+- [x] `internal/ports/repositories/hierarchy_repository.go` — interface
+- [x] `internal/ports/repositories/offence_repository.go` — interface
+- [x] `internal/adapters/repositories/postgres/hierarchy_repo.go`
+- [x] `internal/adapters/repositories/postgres/offence_repo.go`
 
 ### 3.4 Service Layer
-- [ ] `internal/ports/services/hierarchy_service.go` — interface
-- [ ] `internal/ports/services/offence_service.go` — interface
-- [ ] `internal/services/hierarchy_service.go`
-- [ ] `internal/services/offence_service.go`
+- [x] `internal/ports/services/hierarchy_service.go` — interface + request/response types
+- [x] `internal/ports/services/offence_service.go` — interface + request/response types
+- [x] `internal/services/hierarchy_service.go` — with auto-derive and cascade protection
+- [x] `internal/services/offence_service.go` — with fine validation and code immutability
 
 ### 3.5 Handlers & Middleware
-- [ ] `internal/adapters/handlers/hierarchy_handler.go` — 21 endpoints per `07_hierarchy_api.yaml`
-- [ ] `internal/adapters/handlers/offence_handler.go` — 6 endpoints per `06_offences_api.yaml`
-- [ ] `internal/middleware/rbac.go` — permission-to-role mapping
-- [ ] `pkg/pagination/pagination.go` — pagination param parsing
+- [x] `internal/adapters/handlers/hierarchy_handler.go` — 21 endpoints per `07_hierarchy_api.yaml`
+- [x] `internal/adapters/handlers/offence_handler.go` — 6 endpoints per `06_offences_api.yaml`
+- [x] `internal/adapters/handlers/helpers.go` — shared handler utilities (parseID, parseOptionalUUID, etc.)
+- [x] `internal/middleware/rbac.go` — RequireRole middleware
+- [x] `pkg/pagination/pagination.go` — pagination param parsing + Meta
+- [x] `pkg/response/response.go` — added Paginated response helper
 
 ### 3.6 Build & Verify
-- [ ] Hierarchy CRUD with cascade protection (409 if active children)
-- [ ] Offence CRUD + toggle active/inactive
-- [ ] RBAC blocks unauthorized roles
-- [ ] Pagination works on list endpoints
+- [x] Hierarchy CRUD with cascade protection (409 if active children)
+- [x] Offence CRUD + toggle active/inactive
+- [x] RBAC blocks unauthorized roles (RequireRole middleware)
+- [x] Pagination works on station list endpoint
+- [x] Auto-derive: districts get regionId from division, stations get divisionId+regionId from district
+- [x] Station stats with by-region and by-type breakdowns
 
 ---
 
@@ -308,13 +312,13 @@
 
 | # | Phase | Tables |
 |---|-------|--------|
-| 000001 | 1 | regions, divisions, districts, stations |
-| 000002 | 2 | users, officers, refresh_tokens |
+| 000001 | 1 | regions, divisions, districts, stations + 16 region seeds |
+| 000002 | 2 | users, officers, refresh_tokens + super admin seed |
 | 000003 | 3 | offences, vehicle_types, tickets, ticket_offences, ticket_photos, ticket_notes, ticket_number_seq |
-| 000004 | 6 | payments |
-| 000004b | 7 | objections, objection_attachments |
-| 000005 | 8 | audit_logs, system_settings |
-| 000006 | 3 | Seed data (offences, vehicle_types, system_settings) |
+| 000004 | 3 | Seed data (15 offences, 10 vehicle types) |
+| 000005 | 6 | payments |
+| 000006 | 7 | objections, objection_attachments |
+| 000007 | 8 | audit_logs, system_settings |
 
 ## Final Verification
 

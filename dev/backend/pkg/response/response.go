@@ -71,6 +71,26 @@ func Error(w http.ResponseWriter, err *apperrors.AppError) {
 	})
 }
 
+// PaginatedResponse is the success envelope with pagination metadata.
+type PaginatedResponse struct {
+	Success    bool        `json:"success"`
+	Data       interface{} `json:"data"`
+	Pagination interface{} `json:"pagination"`
+	Timestamp  string      `json:"timestamp"`
+}
+
+// Paginated writes a success response with pagination metadata.
+func Paginated(w http.ResponseWriter, status int, data interface{}, pagination interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(PaginatedResponse{
+		Success:    true,
+		Data:       data,
+		Pagination: pagination,
+		Timestamp:  now(),
+	})
+}
+
 // InternalError writes a generic 500 error.
 func InternalError(w http.ResponseWriter) {
 	Error(w, apperrors.NewInternal(nil))

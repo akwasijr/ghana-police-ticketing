@@ -66,4 +66,34 @@ type Station struct {
 	DistrictName string `json:"districtName,omitempty"`
 	DivisionName string `json:"divisionName,omitempty"`
 	RegionName   string `json:"regionName,omitempty"`
+	OfficerCount *int   `json:"officerCount,omitempty"`
+}
+
+// StationFilter holds query parameters for station listing.
+type StationFilter struct {
+	RegionID   *uuid.UUID
+	DivisionID *uuid.UUID
+	DistrictID *uuid.UUID
+	IsActive   *bool
+	Type       *string
+}
+
+// StationStats holds aggregate station statistics.
+type StationStats struct {
+	Total    int           `json:"total"`
+	Active   int           `json:"active"`
+	Inactive int           `json:"inactive"`
+	ByRegion []RegionCount `json:"byRegion"`
+	ByType   []TypeCount   `json:"byType"`
+}
+
+type RegionCount struct {
+	RegionID   uuid.UUID `json:"regionId"`
+	RegionName string    `json:"regionName"`
+	Count      int       `json:"count"`
+}
+
+type TypeCount struct {
+	Type  string `json:"type"`
+	Count int    `json:"count"`
 }
