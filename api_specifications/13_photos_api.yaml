@@ -1,0 +1,277 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Photos API"
+  description: |
+    Photo management API for the Ghana Police Ticketing System.
+    Provides upload, retrieval, and thumbnail generation for ticket evidence photos.
+    Used by the sync service and mobile application for managing photographic evidence
+    associated with traffic offence tickets.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /photos/upload:
+    post:
+      tags:
+        - Photos
+      summary: Upload a photo
+      description: |
+        Uploads a photo to the system, typically used by the sync service
+        for offline-captured photos. The photo is stored and a thumbnail
+        is generated automatically. Maximum file size is 5MB.
+        Accepted formats are JPEG and PNG.
+      operationId: uploadPhoto
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: Photo file (JPEG or PNG, max 5MB)
+                ticketId:
+                  type: string
+                  format: uuid
+                  description: ID of the ticket to associate the photo with
+                  example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                type:
+                  $ref: "#/components/schemas/PhotoType"
+              required:
+                - photo
+                - ticketId
+                - type
+            encoding:
+              photo:
+                contentType: image/jpeg, image/png
+      responses:
+        "201":
+          description: Photo uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPhotoResponse"
+        "400":
+          description: Invalid file type, size exceeded, or missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidFileType:
+                  summary: Unsupported file type
+                  value:
+                    error:
+                      code: "INVALID_FILE_TYPE"
+                      message: "Only JPEG and PNG files are accepted"
+                fileTooLarge:
+                  summary: File size exceeded
+                  value:
+                    error:
+                      code: "FILE_TOO_LARGE"
+                      message: "File size exceeds the maximum limit of 5MB"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /photos/{id}:
+    get:
+      tags:
+        - Photos
+      summary: Get a photo by ID
+      description: |
+        Retrieves the full-size photo by its ID. Returns the binary image
+        directly or redirects to the storage URL depending on the storage
+        backend configuration.
+      operationId: getPhoto
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Photo UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Photo binary data
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "302":
+          description: Redirect to storage URL
+          headers:
+            Location:
+              description: URL of the photo in the storage backend
+              schema:
+                type: string
+                format: uri
+                example: "https://storage.example.com/photos/a1b2c3d4.jpg"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /photos/{id}/thumbnail:
+    get:
+      tags:
+        - Photos
+      summary: Get a photo thumbnail
+      description: |
+        Retrieves a 200x200 pixel thumbnail of the photo. Thumbnails are
+        generated automatically when photos are uploaded. Returns the binary
+        image directly or redirects to the storage URL.
+      operationId: getPhotoThumbnail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Photo UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Thumbnail binary data (200x200 pixels)
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "302":
+          description: Redirect to storage URL for the thumbnail
+          headers:
+            Location:
+              description: URL of the thumbnail in the storage backend
+              schema:
+                type: string
+                format: uri
+                example: "https://storage.example.com/photos/a1b2c3d4_thumb.jpg"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the Auth API
+
+  schemas:
+    UploadPhotoResponse:
+      type: object
+      description: Response returned after a successful photo upload
+      properties:
+        photoId:
+          type: string
+          format: uuid
+          description: Unique identifier for the uploaded photo
+          example: "f1a2b3c4-d5e6-7890-abcd-ef1234567890"
+        url:
+          type: string
+          format: uri
+          description: Full-size photo URL
+          example: "https://storage.example.com/photos/f1a2b3c4.jpg"
+        thumbnailUrl:
+          type: string
+          format: uri
+          description: Thumbnail photo URL (200x200)
+          example: "https://storage.example.com/photos/f1a2b3c4_thumb.jpg"
+      required:
+        - photoId
+        - url
+        - thumbnailUrl
+
+    PhotoType:
+      type: string
+      enum:
+        - vehicle
+        - plate
+        - evidence
+        - other
+      description: |
+        Type/category of the photo:
+        - vehicle: Photo of the vehicle involved
+        - plate: Photo of the license plate
+        - evidence: Photo of evidence (damage, violation, etc.)
+        - other: Other relevant photo
+      example: "vehicle"
+
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "NOT_FOUND"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "The requested photo was not found"
+            details:
+              type: array
+              description: Detailed error information
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: "photo"
+                  message:
+                    type: string
+                    example: "File must be JPEG or PNG format"
+          required:
+            - code
+            - message
+      required:
+        - error

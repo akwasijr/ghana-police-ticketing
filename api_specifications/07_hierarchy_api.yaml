@@ -1,0 +1,1345 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Organizational Hierarchy API"
+  description: |
+    Manage the Ghana Police organizational hierarchy: Region > Division > District > Station.
+
+    The hierarchy follows a strict parent-child relationship:
+    - **Region** — Top-level administrative area (e.g. Greater Accra Region)
+    - **Division** — Belongs to a Region
+    - **District** — Belongs to a Division (regionId auto-derived)
+    - **Station** — Belongs to a District (divisionId and regionId auto-derived)
+
+    Deactivation is blocked when active children exist at any level.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Regions
+    description: Top-level organizational regions
+  - name: Divisions
+    description: Divisions within a region
+  - name: Districts
+    description: Districts within a division
+  - name: Stations
+    description: Police stations within a district
+
+paths:
+  # ── Regions ──────────────────────────────────────────────────────────
+  /regions:
+    get:
+      tags: [Regions]
+      summary: List all regions
+      description: Returns all regions. Accessible by any authenticated user.
+      operationId: listRegions
+      responses:
+        "200":
+          description: List of regions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Region"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Regions]
+      summary: Create a region
+      description: Create a new region. Requires `super_admin` role.
+      operationId: createRegion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - code
+              properties:
+                name:
+                  type: string
+                  example: "Greater Accra Region"
+                code:
+                  type: string
+                  minLength: 2
+                  maxLength: 3
+                  pattern: "^[A-Z]{2,3}$"
+                  description: "Unique 2-3 character uppercase code"
+                  example: "GAR"
+                capital:
+                  type: string
+                  example: "Accra"
+      responses:
+        "201":
+          description: Region created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Region"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /regions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      tags: [Regions]
+      summary: Get region by ID
+      description: Returns a single region by its ID. Accessible by any authenticated user.
+      operationId: getRegion
+      responses:
+        "200":
+          description: Region details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Region"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Regions]
+      summary: Update a region
+      description: Update an existing region. Requires `super_admin` role.
+      operationId: updateRegion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Greater Accra Region"
+                code:
+                  type: string
+                  minLength: 2
+                  maxLength: 3
+                  pattern: "^[A-Z]{2,3}$"
+                  example: "GAR"
+                capital:
+                  type: string
+                  example: "Accra"
+                isActive:
+                  type: boolean
+                  example: true
+      responses:
+        "200":
+          description: Region updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Region"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Regions]
+      summary: Deactivate a region
+      description: |
+        Soft-deactivate a region. Requires `super_admin` role.
+        Blocked if the region has active divisions.
+      operationId: deleteRegion
+      responses:
+        "200":
+          description: Region deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Region deactivated successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot deactivate — active divisions exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot deactivate region with active divisions"
+
+  # ── Divisions ────────────────────────────────────────────────────────
+  /divisions:
+    get:
+      tags: [Divisions]
+      summary: List divisions
+      description: Returns divisions, optionally filtered by region. Accessible by any authenticated user.
+      operationId: listDivisions
+      parameters:
+        - name: regionId
+          in: query
+          description: Filter by region ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of divisions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Division"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Divisions]
+      summary: Create a division
+      description: Create a new division under a region. Requires `super_admin` role.
+      operationId: createDivision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - code
+                - regionId
+              properties:
+                name:
+                  type: string
+                  example: "Accra Central Division"
+                code:
+                  type: string
+                  description: "Unique division code"
+                  example: "ACD"
+                regionId:
+                  type: string
+                  format: uuid
+                  example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "201":
+          description: Division created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Division"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /divisions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      tags: [Divisions]
+      summary: Get division by ID
+      description: Returns a single division by its ID. Accessible by any authenticated user.
+      operationId: getDivision
+      responses:
+        "200":
+          description: Division details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Division"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Divisions]
+      summary: Update a division
+      description: Update an existing division. Requires `super_admin` role.
+      operationId: updateDivision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Accra Central Division"
+                code:
+                  type: string
+                  example: "ACD"
+                regionId:
+                  type: string
+                  format: uuid
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: Division updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Division"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Divisions]
+      summary: Deactivate a division
+      description: |
+        Soft-deactivate a division. Requires `super_admin` role.
+        Blocked if the division has active districts.
+      operationId: deleteDivision
+      responses:
+        "200":
+          description: Division deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Division deactivated successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot deactivate — active districts exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot deactivate division with active districts"
+
+  # ── Districts ────────────────────────────────────────────────────────
+  /districts:
+    get:
+      tags: [Districts]
+      summary: List districts
+      description: Returns districts, optionally filtered by division or region. Accessible by any authenticated user.
+      operationId: listDistricts
+      parameters:
+        - name: divisionId
+          in: query
+          description: Filter by division ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: regionId
+          in: query
+          description: Filter by region ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of districts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/District"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Districts]
+      summary: Create a district
+      description: |
+        Create a new district under a division. Requires `super_admin` role.
+        The `regionId` is automatically derived from the parent division.
+      operationId: createDistrict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - code
+                - divisionId
+              properties:
+                name:
+                  type: string
+                  example: "Osu District"
+                code:
+                  type: string
+                  description: "Unique district code"
+                  example: "OSD"
+                divisionId:
+                  type: string
+                  format: uuid
+                  example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+      responses:
+        "201":
+          description: District created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/District"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /districts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      tags: [Districts]
+      summary: Get district by ID
+      description: Returns a single district by its ID. Accessible by any authenticated user.
+      operationId: getDistrict
+      responses:
+        "200":
+          description: District details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/District"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Districts]
+      summary: Update a district
+      description: Update an existing district. Requires `super_admin` role.
+      operationId: updateDistrict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Osu District"
+                code:
+                  type: string
+                  example: "OSD"
+                divisionId:
+                  type: string
+                  format: uuid
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: District updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/District"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Districts]
+      summary: Deactivate a district
+      description: |
+        Soft-deactivate a district. Requires `super_admin` role.
+        Blocked if the district has active stations.
+      operationId: deleteDistrict
+      responses:
+        "200":
+          description: District deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "District deactivated successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot deactivate — active stations exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot deactivate district with active stations"
+
+  # ── Stations ─────────────────────────────────────────────────────────
+  /stations:
+    get:
+      tags: [Stations]
+      summary: List stations with pagination and filters
+      description: Returns a paginated list of stations with optional filters. Accessible by any authenticated user.
+      operationId: listStations
+      parameters:
+        - name: search
+          in: query
+          description: Search by station name or code
+          required: false
+          schema:
+            type: string
+        - name: regionId
+          in: query
+          description: Filter by region ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: divisionId
+          in: query
+          description: Filter by division ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: districtId
+          in: query
+          description: Filter by district ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: isActive
+          in: query
+          description: Filter by active status
+          required: false
+          schema:
+            type: boolean
+        - name: type
+          in: query
+          description: Filter by station type
+          required: false
+          schema:
+            $ref: "#/components/schemas/StationType"
+        - name: page
+          in: query
+          description: Page number (1-based)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          required: false
+          schema:
+            type: string
+            enum:
+              - name
+              - code
+              - type
+              - createdAt
+            default: name
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+      responses:
+        "200":
+          description: Paginated list of stations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedStationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Stations]
+      summary: Create a station
+      description: |
+        Create a new police station under a district. Requires `admin` or `super_admin` role.
+        The `divisionId` and `regionId` are automatically derived from the parent district.
+      operationId: createStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - code
+                - districtId
+                - address
+                - phone
+              properties:
+                name:
+                  type: string
+                  example: "Osu Police Station"
+                code:
+                  type: string
+                  description: "Unique station code"
+                  example: "OPS-001"
+                districtId:
+                  type: string
+                  format: uuid
+                  example: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+                address:
+                  type: string
+                  example: "Oxford Street, Osu, Accra"
+                phone:
+                  type: string
+                  example: "+233302770123"
+                email:
+                  type: string
+                  format: email
+                  example: "osu.station@gps.gov.gh"
+                latitude:
+                  type: number
+                  format: double
+                  example: 5.5560
+                longitude:
+                  type: number
+                  format: double
+                  example: -0.1870
+                type:
+                  $ref: "#/components/schemas/StationType"
+      responses:
+        "201":
+          description: Station created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Station"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /stations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      tags: [Stations]
+      summary: Get station by ID
+      description: Returns a single station with full hierarchy details. Accessible by any authenticated user.
+      operationId: getStation
+      responses:
+        "200":
+          description: Station details with full hierarchy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Station"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Stations]
+      summary: Update a station
+      description: Update an existing station. Requires `admin` or `super_admin` role.
+      operationId: updateStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Osu Police Station"
+                code:
+                  type: string
+                  example: "OPS-001"
+                districtId:
+                  type: string
+                  format: uuid
+                address:
+                  type: string
+                  example: "Oxford Street, Osu, Accra"
+                phone:
+                  type: string
+                  example: "+233302770123"
+                email:
+                  type: string
+                  format: email
+                  example: "osu.station@gps.gov.gh"
+                latitude:
+                  type: number
+                  format: double
+                longitude:
+                  type: number
+                  format: double
+                type:
+                  $ref: "#/components/schemas/StationType"
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: Station updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Station"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [Stations]
+      summary: Deactivate a station
+      description: |
+        Soft-deactivate a station. Requires `super_admin` role.
+        Blocked if the station has active officers assigned.
+      operationId: deleteStation
+      responses:
+        "200":
+          description: Station deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Station deactivated successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot deactivate — active officers assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot deactivate station with active officers assigned"
+
+  /stations/stats:
+    get:
+      tags: [Stations]
+      summary: Get station statistics
+      description: Returns aggregate station statistics. Requires `admin` or `super_admin` role.
+      operationId: getStationStats
+      responses:
+        "200":
+          description: Station statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/StationStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+# ── Components ───────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      description: Resource UUID
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Validation failed"
+            errors:
+              - field: "code"
+                message: "Code is required"
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Authentication required"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Insufficient permissions"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Resource not found"
+    Conflict:
+      description: Duplicate or conflicting resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "A resource with this code already exists"
+
+  schemas:
+    # ── Region ─────────────────────────────────────────────────────────
+    Region:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          example: "Greater Accra Region"
+        code:
+          type: string
+          minLength: 2
+          maxLength: 3
+          pattern: "^[A-Z]{2,3}$"
+          example: "GAR"
+        capital:
+          type: string
+          nullable: true
+          example: "Accra"
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    # ── Division ───────────────────────────────────────────────────────
+    Division:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - regionId
+        - regionName
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        name:
+          type: string
+          example: "Accra Central Division"
+        code:
+          type: string
+          example: "ACD"
+        regionId:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        regionName:
+          type: string
+          example: "Greater Accra Region"
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    # ── District ───────────────────────────────────────────────────────
+    District:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - divisionId
+        - divisionName
+        - regionId
+        - regionName
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+        name:
+          type: string
+          example: "Osu District"
+        code:
+          type: string
+          example: "OSD"
+        divisionId:
+          type: string
+          format: uuid
+          example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        divisionName:
+          type: string
+          example: "Accra Central Division"
+        regionId:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        regionName:
+          type: string
+          example: "Greater Accra Region"
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    # ── Station ────────────────────────────────────────────────────────
+    Station:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - districtId
+        - districtName
+        - divisionId
+        - divisionName
+        - regionId
+        - regionName
+        - address
+        - phone
+        - type
+        - isActive
+        - officerCount
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "d4e5f6a7-b8c9-0123-defa-234567890123"
+        name:
+          type: string
+          example: "Osu Police Station"
+        code:
+          type: string
+          example: "OPS-001"
+        districtId:
+          type: string
+          format: uuid
+          example: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+        districtName:
+          type: string
+          example: "Osu District"
+        divisionId:
+          type: string
+          format: uuid
+          example: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+        divisionName:
+          type: string
+          example: "Accra Central Division"
+        regionId:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        regionName:
+          type: string
+          example: "Greater Accra Region"
+        address:
+          type: string
+          example: "Oxford Street, Osu, Accra"
+        phone:
+          type: string
+          example: "+233302770123"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: "osu.station@gps.gov.gh"
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          example: 5.5560
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          example: -0.1870
+        type:
+          $ref: "#/components/schemas/StationType"
+        isActive:
+          type: boolean
+          example: true
+        officerCount:
+          type: integer
+          minimum: 0
+          example: 24
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    # ── Station Type ───────────────────────────────────────────────────
+    StationType:
+      type: string
+      enum:
+        - HQ
+        - District
+        - Outpost
+      default: District
+      example: "District"
+
+    # ── Station Stats ──────────────────────────────────────────────────
+    StationStats:
+      type: object
+      required:
+        - total
+        - active
+        - inactive
+        - byRegion
+        - byType
+      properties:
+        total:
+          type: integer
+          example: 150
+        active:
+          type: integer
+          example: 142
+        inactive:
+          type: integer
+          example: 8
+        byRegion:
+          type: array
+          items:
+            type: object
+            required:
+              - regionId
+              - regionName
+              - count
+            properties:
+              regionId:
+                type: string
+                format: uuid
+                example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+              regionName:
+                type: string
+                example: "Greater Accra Region"
+              count:
+                type: integer
+                example: 35
+        byType:
+          type: array
+          items:
+            type: object
+            required:
+              - type
+              - count
+            properties:
+              type:
+                $ref: "#/components/schemas/StationType"
+              count:
+                type: integer
+                example: 95
+
+    # ── Paginated Station Response ─────────────────────────────────────
+    PaginatedStationResponse:
+      type: object
+      required:
+        - success
+        - data
+        - pagination
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Station"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # ── Pagination ─────────────────────────────────────────────────────
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          example: 20
+        total:
+          type: integer
+          minimum: 0
+          example: 150
+        totalPages:
+          type: integer
+          minimum: 0
+          example: 8
+
+    # ── Error Response ─────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "An error occurred"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string

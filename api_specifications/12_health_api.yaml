@@ -1,0 +1,156 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Health Check API"
+  description: |
+    System health check endpoint for monitoring and load balancer health probes.
+    No authentication is required.
+
+    Health status logic:
+    - **healthy** -- All services (database, cache, storage) are operational.
+    - **degraded** -- A non-critical service (cache or storage) is down, but the
+      database is still available. The system can continue to serve requests.
+    - **unhealthy** -- The critical service (database) is down. The system cannot
+      process requests reliably.
+
+    HTTP status codes:
+    - `200` is returned for `healthy` and `degraded` states.
+    - `503` is returned for the `unhealthy` state.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security: []
+
+tags:
+  - name: Health
+    description: System health monitoring
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: |
+        Returns the current health status of the system and its dependent
+        services. This endpoint requires no authentication and is intended
+        for use by load balancers, monitoring dashboards, and DevOps tooling.
+
+        **Status determination:**
+        - `healthy` -- database, cache, and storage are all reachable.
+        - `degraded` -- database is reachable but one or more non-critical
+          services (cache, storage) are unreachable.
+        - `unhealthy` -- database is unreachable.
+
+        **HTTP response codes:**
+        - Returns `200 OK` when status is `healthy` or `degraded`.
+        - Returns `503 Service Unavailable` when status is `unhealthy`.
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: System is healthy or degraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheckResponse"
+              examples:
+                healthy:
+                  summary: All services operational
+                  value:
+                    status: "healthy"
+                    version: "1.0.0"
+                    timestamp: "2025-06-10T14:22:00Z"
+                    services:
+                      database: true
+                      cache: true
+                      storage: true
+                degraded:
+                  summary: Non-critical service down
+                  value:
+                    status: "degraded"
+                    version: "1.0.0"
+                    timestamp: "2025-06-10T14:22:00Z"
+                    services:
+                      database: true
+                      cache: false
+                      storage: true
+        "503":
+          description: System is unhealthy (critical service down)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheckResponse"
+              example:
+                status: "unhealthy"
+                version: "1.0.0"
+                timestamp: "2025-06-10T14:22:00Z"
+                services:
+                  database: false
+                  cache: false
+                  storage: true
+
+components:
+  schemas:
+    # -- Health Check Response -----------------------------------------------
+    HealthCheckResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+        - services
+      properties:
+        status:
+          type: string
+          description: >
+            Overall system health status. "healthy" when all services are up,
+            "degraded" when a non-critical service is down, "unhealthy" when
+            the database is down.
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          example: "healthy"
+        version:
+          type: string
+          description: Application version string
+          example: "1.0.0"
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when the health check was performed
+          example: "2025-06-10T14:22:00Z"
+        services:
+          $ref: "#/components/schemas/ServiceStatus"
+
+    # -- Service Status ------------------------------------------------------
+    ServiceStatus:
+      type: object
+      description: >
+        Reachability status of each dependent service. `true` means the
+        service is reachable; `false` means it is not.
+      required:
+        - database
+        - cache
+        - storage
+      properties:
+        database:
+          type: boolean
+          description: >
+            PostgreSQL database connectivity. This is the critical service;
+            if false the overall status is "unhealthy".
+          example: true
+        cache:
+          type: boolean
+          description: >
+            Redis cache connectivity. Non-critical; if false the overall
+            status is at most "degraded".
+          example: true
+        storage:
+          type: boolean
+          description: >
+            Object/file storage connectivity. Non-critical; if false the
+            overall status is at most "degraded".
+          example: true

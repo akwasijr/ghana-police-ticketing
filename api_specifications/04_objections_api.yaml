@@ -1,0 +1,738 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Objections API"
+  description: >
+    Manage ticket objections/disputes filed by drivers against traffic violation tickets.
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Objections
+    description: Ticket objection and dispute management
+
+paths:
+  /objections:
+    post:
+      tags:
+        - Objections
+      summary: File a new objection
+      description: >
+        File a new objection/dispute against a traffic violation ticket.
+        Must be filed within 7 days of the ticket issuedAt date.
+        The ticket status is updated to 'objection'. Only one active objection
+        is allowed per ticket.
+      operationId: fileObjection
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileObjectionRequest"
+      responses:
+        "201":
+          description: Objection filed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileObjectionResponse"
+        "400":
+          description: Invalid request or objection deadline has passed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: An active objection already exists for this ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Objections
+      summary: List objections with filters
+      description: Retrieve a paginated list of objections with optional filtering and sorting.
+      operationId: listObjections
+      security:
+        - bearerAuth: []
+      x-roles:
+        - admin
+        - super_admin
+      parameters:
+        - name: search
+          in: query
+          description: Search by ticket number, driver name, or reason
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Comma-separated list of objection statuses to filter by
+          schema:
+            type: string
+            example: "pending,approved"
+        - name: dateFrom
+          in: query
+          description: Filter objections from this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: dateTo
+          in: query
+          description: Filter objections up to this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: stationId
+          in: query
+          description: Filter by station ID
+          schema:
+            type: string
+            format: uuid
+        - name: regionId
+          in: query
+          description: Filter by region ID
+          schema:
+            type: string
+            format: uuid
+        - name: minAmount
+          in: query
+          description: Minimum fine amount filter
+          schema:
+            type: number
+            format: double
+        - name: maxAmount
+          in: query
+          description: Maximum fine amount filter
+          schema:
+            type: number
+            format: double
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum:
+              - createdAt
+              - submittedAt
+              - reviewedAt
+              - status
+              - fineAmount
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of objections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedObjectionResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /objections/{id}:
+    get:
+      tags:
+        - Objections
+      summary: Get objection detail
+      description: Retrieve the full details of a specific objection.
+      operationId: getObjectionById
+      security:
+        - bearerAuth: []
+      x-roles:
+        - admin
+        - super_admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Objection ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Objection details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Objection"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Objection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /objections/{id}/review:
+    post:
+      tags:
+        - Objections
+      summary: Review and decide on an objection
+      description: >
+        Review and make a decision on a pending objection. If approved, the ticket
+        status is updated to 'cancelled' (or the fine is adjusted if adjustedFine is provided).
+        If rejected, the ticket status reverts to 'unpaid' or 'overdue'.
+      operationId: reviewObjection
+      security:
+        - bearerAuth: []
+      x-roles:
+        - admin
+        - super_admin
+      x-permissions:
+        - "objection:process"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Objection ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessObjectionRequest"
+      responses:
+        "200":
+          description: Objection reviewed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Objection"
+        "400":
+          description: Invalid request or objection is not in pending status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Objection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /objections/stats:
+    get:
+      tags:
+        - Objections
+      summary: Get objection statistics
+      description: Retrieve aggregated objection statistics with optional date, station, and region filters.
+      operationId: getObjectionStats
+      security:
+        - bearerAuth: []
+      x-roles:
+        - admin
+        - super_admin
+      parameters:
+        - name: dateFrom
+          in: query
+          description: Start date for statistics period (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: dateTo
+          in: query
+          description: End date for statistics period (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: stationId
+          in: query
+          description: Filter statistics by station ID
+          schema:
+            type: string
+            format: uuid
+        - name: regionId
+          in: query
+          description: Filter statistics by region ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Objection statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectionStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the authentication service
+
+  schemas:
+    ObjectionStatus:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
+      description: >
+        Objection lifecycle statuses:
+        * pending - Objection filed, awaiting review
+        * approved - Objection approved, ticket cancelled or fine adjusted
+        * rejected - Objection rejected, ticket status reverted
+
+    ObjectionAttachment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique attachment identifier
+        type:
+          type: string
+          description: MIME type of the attachment
+          example: "image/jpeg"
+        url:
+          type: string
+          format: uri
+          description: URL to access the attachment
+          example: "https://storage.example.com/attachments/abc123.jpg"
+        name:
+          type: string
+          description: Original file name
+          example: "dashboard_cam_evidence.jpg"
+        uploadedAt:
+          type: string
+          format: date-time
+          description: When the attachment was uploaded
+      required:
+        - id
+        - type
+        - url
+        - name
+        - uploadedAt
+
+    Objection:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique objection identifier
+        ticketId:
+          type: string
+          format: uuid
+          description: Associated ticket ID
+        ticketNumber:
+          type: string
+          description: Associated ticket number
+          example: "TKT-2026-00567"
+        vehicleReg:
+          type: string
+          description: Vehicle registration number from the ticket
+          example: "GR-1234-21"
+        reason:
+          type: string
+          description: Reason for the objection
+          example: "I was not the driver at the time of the alleged offence"
+        details:
+          type: string
+          description: Additional details supporting the objection
+          example: "My vehicle was parked at home. I have CCTV footage to prove this."
+        evidence:
+          type: string
+          description: Summary of evidence provided
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectionAttachment"
+          description: Supporting documents and files
+        status:
+          $ref: "#/components/schemas/ObjectionStatus"
+        submittedAt:
+          type: string
+          format: date-time
+          description: When the objection was submitted
+        reviewedAt:
+          type: string
+          format: date-time
+          description: When the objection was reviewed
+        reviewedBy:
+          type: string
+          description: Name of the reviewer
+          example: "Insp. Owusu"
+        reviewedById:
+          type: string
+          format: uuid
+          description: ID of the reviewer
+        reviewNotes:
+          type: string
+          description: Notes from the reviewer explaining the decision
+          example: "Evidence provided is sufficient to support the claim"
+        driverName:
+          type: string
+          description: Name of the driver who filed the objection
+          example: "Kofi Mensah"
+        driverPhone:
+          type: string
+          description: Contact phone number of the driver
+          example: "0201234567"
+        driverEmail:
+          type: string
+          format: email
+          description: Contact email of the driver
+          example: "kofi@example.com"
+        offenceType:
+          type: string
+          description: Type of offence on the original ticket
+          example: "Speeding"
+        fineAmount:
+          type: number
+          format: double
+          description: Original fine amount on the ticket
+          example: 300.00
+        stationId:
+          type: string
+          format: uuid
+          description: Station ID where the ticket was issued
+        stationName:
+          type: string
+          description: Station name where the ticket was issued
+          example: "Accra Central Police Station"
+        districtId:
+          type: string
+          format: uuid
+          description: District ID
+        districtName:
+          type: string
+          description: District name
+          example: "Accra Metropolitan"
+        divisionId:
+          type: string
+          format: uuid
+          description: Division ID
+        divisionName:
+          type: string
+          description: Division name
+          example: "Greater Accra Division"
+        regionId:
+          type: string
+          format: uuid
+          description: Region ID
+        regionName:
+          type: string
+          description: Region name
+          example: "Greater Accra"
+        createdAt:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Record last update timestamp
+      required:
+        - id
+        - ticketId
+        - ticketNumber
+        - reason
+        - status
+        - submittedAt
+        - driverName
+        - driverPhone
+        - offenceType
+        - fineAmount
+        - createdAt
+        - updatedAt
+
+    FileObjectionRequest:
+      type: object
+      properties:
+        ticketId:
+          type: string
+          format: uuid
+          description: ID of the ticket to object against
+        reason:
+          type: string
+          minLength: 10
+          description: Reason for filing the objection (minimum 10 characters)
+          example: "I was not the driver at the time of the alleged offence"
+        details:
+          type: string
+          description: Additional details to support the objection
+          example: "My vehicle was parked at home. I have CCTV footage to prove this."
+        contactPhone:
+          type: string
+          description: Contact phone number (Ghana format)
+          pattern: "^0[235]\\d{8}$"
+          example: "0201234567"
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: "kofi@example.com"
+        supportingDocuments:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Array of previously uploaded file IDs to attach as supporting documents
+      required:
+        - ticketId
+        - reason
+        - contactPhone
+
+    FileObjectionResponse:
+      type: object
+      properties:
+        objectionId:
+          type: string
+          format: uuid
+          description: Unique identifier for the filed objection
+        ticketNumber:
+          type: string
+          description: Associated ticket number
+          example: "TKT-2026-00567"
+        status:
+          type: string
+          enum:
+            - pending
+          description: Initial objection status (always 'pending')
+          example: "pending"
+        filedAt:
+          type: string
+          format: date-time
+          description: When the objection was filed
+        reviewDeadline:
+          type: string
+          format: date-time
+          description: Deadline by which the objection should be reviewed
+      required:
+        - objectionId
+        - ticketNumber
+        - status
+        - filedAt
+        - reviewDeadline
+
+    ProcessObjectionRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum:
+            - approved
+            - rejected
+          description: >
+            Decision on the objection:
+            * approved - Accept the objection; ticket is cancelled or fine adjusted
+            * rejected - Reject the objection; ticket status reverts to unpaid/overdue
+        reviewNotes:
+          type: string
+          minLength: 10
+          description: Notes explaining the decision (minimum 10 characters)
+          example: "Evidence provided is sufficient to support the claim"
+        adjustedFine:
+          type: number
+          format: double
+          description: Adjusted fine amount (only applicable if decision is 'approved'). If omitted on approval, ticket is cancelled entirely.
+          minimum: 0
+          example: 150.00
+      required:
+        - decision
+        - reviewNotes
+
+    ObjectionStats:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of objections in the period
+          example: 320
+        pending:
+          type: integer
+          description: Number of objections awaiting review
+          example: 45
+        approved:
+          type: integer
+          description: Number of approved objections
+          example: 180
+        rejected:
+          type: integer
+          description: Number of rejected objections
+          example: 95
+        approvalRate:
+          type: number
+          format: double
+          description: Approval rate as a percentage (0-100)
+          example: 65.45
+        avgResolutionTimeHours:
+          type: number
+          format: double
+          description: Average time in hours to resolve an objection
+          example: 48.5
+      required:
+        - total
+        - pending
+        - approved
+        - rejected
+        - approvalRate
+        - avgResolutionTimeHours
+
+    PaginatedObjectionResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Objection"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required:
+        - data
+        - pagination
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        totalItems:
+          type: integer
+          description: Total number of matching items
+          example: 320
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 16
+        hasNextPage:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPreviousPage:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Objection not found"
+        error:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+      required:
+        - success
+        - message

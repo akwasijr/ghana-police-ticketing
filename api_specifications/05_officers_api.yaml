@@ -1,0 +1,1154 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Officers API"
+  description: >
+    Officer management service for the Ghana Police Ticketing System.
+    Provides endpoints for listing, creating, updating, and managing police officers,
+    as well as retrieving officer performance statistics. Administrative endpoints
+    require admin-level or higher privileges.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /officers:
+    get:
+      tags:
+        - Officers
+      summary: List officers
+      description: >
+        Retrieves a paginated list of officers with optional filtering by search term,
+        station, region, rank, active status, and role. Supports sorting by various fields.
+      operationId: listOfficers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: >
+            Free-text search across officer name, badge number, email, and phone
+          required: false
+          schema:
+            type: string
+          example: "Mensah"
+        - name: stationId
+          in: query
+          description: Filter by station ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        - name: regionId
+          in: query
+          description: Filter by region ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+        - name: rank
+          in: query
+          description: Filter by officer rank
+          required: false
+          schema:
+            type: string
+            enum:
+              - constable
+              - lance_corporal
+              - corporal
+              - sergeant
+              - staff_sergeant
+              - warrant_officer_ii
+              - warrant_officer_i
+              - inspector
+              - chief_inspector
+              - assistant_superintendent
+              - deputy_superintendent
+              - superintendent
+              - chief_superintendent
+              - assistant_commissioner
+              - deputy_commissioner
+              - commissioner
+          example: "inspector"
+        - name: isActive
+          in: query
+          description: Filter by active status
+          required: false
+          schema:
+            type: boolean
+          example: true
+        - name: role
+          in: query
+          description: Filter by user role
+          required: false
+          schema:
+            type: string
+            enum:
+              - officer
+              - supervisor
+              - admin
+              - accountant
+              - super_admin
+          example: "officer"
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of records per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: sortBy
+          in: query
+          description: Field to sort results by
+          required: false
+          schema:
+            type: string
+          example: "lastName"
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          example: "asc"
+      responses:
+        "200":
+          description: Officers retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PaginatedOfficerListResponse"
+              example:
+                success: true
+                message: "Officers retrieved successfully"
+                data:
+                  items:
+                    - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      firstName: "Kwame"
+                      lastName: "Mensah"
+                      fullName: "Kwame Mensah"
+                      email: "kwame.mensah@gps.gov.gh"
+                      phone: "+233241234567"
+                      badgeNumber: "GPS-12345"
+                      rank: "inspector"
+                      rankDisplay: "Inspector"
+                      stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                      stationName: "Accra Central Police Station"
+                      regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                      regionName: "Greater Accra Region"
+                      role: "officer"
+                      isActive: true
+                      assignedDeviceId: "device-abc-123"
+                      profilePhoto: "https://storage.example.com/photos/kmensah.jpg"
+                      createdAt: "2025-01-15T08:30:00Z"
+                      lastLogin: "2025-06-10T14:22:00Z"
+                      status: "active"
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalItems: 85
+                    totalPages: 5
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+    post:
+      tags:
+        - Officers
+      summary: Create a new officer
+      description: >
+        Creates a new officer record in the system. Requires admin-level or
+        higher privileges. The badge number must be unique across the system.
+        If a password is not provided, a temporary password will be generated.
+      operationId: createOfficer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfficerRequest"
+            example:
+              firstName: "Ama"
+              lastName: "Asante"
+              email: "ama.asante@gps.gov.gh"
+              phone: "+233209876543"
+              badgeNumber: "GPS-67890"
+              rank: "sergeant"
+              stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+              role: "officer"
+              password: "tempPassword123"
+      responses:
+        "201":
+          description: Officer created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Officer"
+              example:
+                success: true
+                message: "Officer created successfully"
+                data:
+                  id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                  firstName: "Ama"
+                  lastName: "Asante"
+                  fullName: "Ama Asante"
+                  email: "ama.asante@gps.gov.gh"
+                  phone: "+233209876543"
+                  badgeNumber: "GPS-67890"
+                  rank: "sergeant"
+                  rankDisplay: "Sergeant"
+                  stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                  station:
+                    id: "11223344-5566-7788-99aa-bbccddeeff00"
+                    name: "Accra Central Police Station"
+                    code: "ACC-001"
+                  regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                  role: "officer"
+                  isActive: true
+                  assignedDeviceId: null
+                  profilePhoto: null
+                  createdAt: "2025-06-12T10:00:00Z"
+                  lastLogin: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Conflict - duplicate badge number or email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                success: false
+                message: "Duplicate entry"
+                error:
+                  code: "DUPLICATE_ENTRY"
+                  details: "An officer with this badge number or email already exists."
+
+  /officers/{id}:
+    get:
+      tags:
+        - Officers
+      summary: Get officer by ID
+      description: >
+        Retrieves the full details of a specific officer, including nested
+        station information.
+      operationId: getOfficer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Officer's unique identifier
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: Officer retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Officer"
+              example:
+                success: true
+                message: "Officer retrieved successfully"
+                data:
+                  id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  firstName: "Kwame"
+                  lastName: "Mensah"
+                  fullName: "Kwame Mensah"
+                  email: "kwame.mensah@gps.gov.gh"
+                  phone: "+233241234567"
+                  badgeNumber: "GPS-12345"
+                  rank: "inspector"
+                  rankDisplay: "Inspector"
+                  stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                  station:
+                    id: "11223344-5566-7788-99aa-bbccddeeff00"
+                    name: "Accra Central Police Station"
+                    code: "ACC-001"
+                  regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                  role: "officer"
+                  isActive: true
+                  assignedDeviceId: "device-abc-123"
+                  profilePhoto: "https://storage.example.com/photos/kmensah.jpg"
+                  createdAt: "2025-01-15T08:30:00Z"
+                  lastLogin: "2025-06-10T14:22:00Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+    put:
+      tags:
+        - Officers
+      summary: Update an officer
+      description: >
+        Updates an existing officer's details. Requires admin-level or higher
+        privileges. Only provided fields will be updated.
+      operationId: updateOfficer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Officer's unique identifier
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOfficerRequest"
+            example:
+              rank: "chief_inspector"
+              stationId: "55667788-99aa-bbcc-ddee-ff0011223344"
+      responses:
+        "200":
+          description: Officer updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Officer"
+              example:
+                success: true
+                message: "Officer updated successfully"
+                data:
+                  id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  firstName: "Kwame"
+                  lastName: "Mensah"
+                  fullName: "Kwame Mensah"
+                  email: "kwame.mensah@gps.gov.gh"
+                  phone: "+233241234567"
+                  badgeNumber: "GPS-12345"
+                  rank: "chief_inspector"
+                  rankDisplay: "Chief Inspector"
+                  stationId: "55667788-99aa-bbcc-ddee-ff0011223344"
+                  station:
+                    id: "55667788-99aa-bbcc-ddee-ff0011223344"
+                    name: "Tema Police Station"
+                    code: "TMA-001"
+                  regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                  role: "officer"
+                  isActive: true
+                  assignedDeviceId: "device-abc-123"
+                  profilePhoto: "https://storage.example.com/photos/kmensah.jpg"
+                  createdAt: "2025-01-15T08:30:00Z"
+                  lastLogin: "2025-06-10T14:22:00Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+    delete:
+      tags:
+        - Officers
+      summary: Delete an officer (soft delete)
+      description: >
+        Performs a soft delete of an officer record by deactivating the account.
+        The officer record is retained in the system for audit purposes but is
+        marked as inactive. Requires admin-level or higher privileges.
+      operationId: deleteOfficer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Officer's unique identifier
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: Officer soft-deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                success: true
+                message: "Officer has been deactivated successfully"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /officers/{id}/stats:
+    get:
+      tags:
+        - Officer Statistics
+      summary: Get officer statistics
+      description: >
+        Retrieves performance and activity statistics for a specific officer,
+        including ticket counts, fine amounts, collection rates, and top offences.
+      operationId: getOfficerStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Officer's unique identifier
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: Officer statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OfficerStats"
+              example:
+                success: true
+                message: "Officer statistics retrieved successfully"
+                data:
+                  totalTickets: 342
+                  ticketsThisMonth: 28
+                  ticketsThisWeek: 7
+                  ticketsToday: 2
+                  totalFinesIssued: 171000.00
+                  totalCollected: 136800.00
+                  collectionRate: 80.0
+                  averageFineAmount: 500.00
+                  topOffences:
+                    - offenceCode: "SP-001"
+                      offenceName: "Exceeding Speed Limit"
+                      count: 98
+                    - offenceCode: "TL-002"
+                      offenceName: "Running Red Light"
+                      count: 65
+                    - offenceCode: "DL-003"
+                      offenceName: "Driving Without License"
+                      count: 47
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /officers/{id}/reset-password:
+    post:
+      tags:
+        - Officers
+      summary: Reset an officer's password (admin)
+      description: >
+        Resets the password for a specific officer and generates a temporary
+        password. Requires admin-level or higher privileges. The temporary
+        password should be communicated to the officer securely.
+      operationId: resetOfficerPassword
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Officer's unique identifier
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - temporaryPassword
+                          - message
+                        properties:
+                          temporaryPassword:
+                            type: string
+                            description: The newly generated temporary password
+                            example: "TempPass@2025!"
+                          message:
+                            type: string
+                            description: Instructions for the administrator
+                            example: "Password has been reset. Please share the temporary password with the officer securely."
+              example:
+                success: true
+                message: "Password reset successfully"
+                data:
+                  temporaryPassword: "TempPass@2025!"
+                  message: "Password has been reset. Please share the temporary password with the officer securely."
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from the authentication service
+
+  schemas:
+    OfficerListItem:
+      type: object
+      description: Summary representation of an officer for list views
+      required:
+        - id
+        - firstName
+        - lastName
+        - fullName
+        - badgeNumber
+        - rank
+        - rankDisplay
+        - stationId
+        - stationName
+        - regionId
+        - regionName
+        - role
+        - isActive
+        - createdAt
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique officer identifier
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        firstName:
+          type: string
+          description: Officer's first name
+          example: "Kwame"
+        lastName:
+          type: string
+          description: Officer's last name
+          example: "Mensah"
+        fullName:
+          type: string
+          description: Officer's full display name
+          example: "Kwame Mensah"
+        email:
+          type: string
+          format: email
+          description: Officer's email address
+          example: "kwame.mensah@gps.gov.gh"
+        phone:
+          type: string
+          description: Officer's phone number
+          example: "+233241234567"
+        badgeNumber:
+          type: string
+          description: Officer's unique badge number
+          example: "GPS-12345"
+        rank:
+          $ref: "#/components/schemas/OfficerRank"
+        rankDisplay:
+          type: string
+          description: Human-readable display name for the officer's rank
+          example: "Inspector"
+        stationId:
+          type: string
+          format: uuid
+          description: ID of the assigned station
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        stationName:
+          type: string
+          description: Name of the assigned station
+          example: "Accra Central Police Station"
+        regionId:
+          type: string
+          format: uuid
+          description: ID of the station's region
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+        regionName:
+          type: string
+          description: Name of the station's region
+          example: "Greater Accra Region"
+        role:
+          $ref: "#/components/schemas/UserRole"
+        isActive:
+          type: boolean
+          description: Whether the officer's account is active
+          example: true
+        assignedDeviceId:
+          type: string
+          nullable: true
+          description: ID of the device assigned to this officer
+          example: "device-abc-123"
+        profilePhoto:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the officer's profile photo
+          example: "https://storage.example.com/photos/kmensah.jpg"
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the officer record was created
+          example: "2025-01-15T08:30:00Z"
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the officer's most recent login
+          example: "2025-06-10T14:22:00Z"
+        status:
+          type: string
+          description: Computed status of the officer (e.g., active, inactive, suspended)
+          example: "active"
+
+    Officer:
+      type: object
+      description: Full officer representation with nested station details
+      required:
+        - id
+        - firstName
+        - lastName
+        - fullName
+        - badgeNumber
+        - rank
+        - rankDisplay
+        - stationId
+        - station
+        - regionId
+        - role
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique officer identifier
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        firstName:
+          type: string
+          description: Officer's first name
+          example: "Kwame"
+        lastName:
+          type: string
+          description: Officer's last name
+          example: "Mensah"
+        fullName:
+          type: string
+          description: Officer's full display name
+          example: "Kwame Mensah"
+        email:
+          type: string
+          format: email
+          description: Officer's email address
+          example: "kwame.mensah@gps.gov.gh"
+        phone:
+          type: string
+          description: Officer's phone number
+          example: "+233241234567"
+        badgeNumber:
+          type: string
+          description: Officer's unique badge number
+          example: "GPS-12345"
+        rank:
+          $ref: "#/components/schemas/OfficerRank"
+        rankDisplay:
+          type: string
+          description: Human-readable display name for the officer's rank
+          example: "Inspector"
+        stationId:
+          type: string
+          format: uuid
+          description: ID of the assigned station
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        station:
+          $ref: "#/components/schemas/Station"
+        regionId:
+          type: string
+          format: uuid
+          description: ID of the station's region
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+        role:
+          $ref: "#/components/schemas/UserRole"
+        isActive:
+          type: boolean
+          description: Whether the officer's account is active
+          example: true
+        assignedDeviceId:
+          type: string
+          nullable: true
+          description: ID of the device assigned to this officer
+          example: "device-abc-123"
+        profilePhoto:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the officer's profile photo
+          example: "https://storage.example.com/photos/kmensah.jpg"
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the officer record was created
+          example: "2025-01-15T08:30:00Z"
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the officer's most recent login
+          example: "2025-06-10T14:22:00Z"
+
+    CreateOfficerRequest:
+      type: object
+      description: Request body for creating a new officer
+      required:
+        - firstName
+        - lastName
+        - phone
+        - badgeNumber
+        - rank
+        - stationId
+      properties:
+        firstName:
+          type: string
+          description: Officer's first name
+          example: "Ama"
+        lastName:
+          type: string
+          description: Officer's last name
+          example: "Asante"
+        email:
+          type: string
+          format: email
+          description: Officer's email address (optional but must be unique if provided)
+          example: "ama.asante@gps.gov.gh"
+        phone:
+          type: string
+          description: Officer's phone number
+          example: "+233209876543"
+        badgeNumber:
+          type: string
+          description: Officer's unique badge number (must be unique across the system)
+          example: "GPS-67890"
+        rank:
+          $ref: "#/components/schemas/OfficerRank"
+        stationId:
+          type: string
+          format: uuid
+          description: ID of the station to assign the officer to
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        role:
+          $ref: "#/components/schemas/UserRole"
+          default: "officer"
+        password:
+          type: string
+          format: password
+          description: >
+            Initial password for the officer account. If not provided, a temporary
+            password will be generated.
+          minLength: 8
+          example: "tempPassword123"
+
+    UpdateOfficerRequest:
+      type: object
+      description: >
+        Request body for updating an officer. All fields are optional; only
+        provided fields will be updated.
+      properties:
+        firstName:
+          type: string
+          description: Officer's first name
+          example: "Kwame"
+        lastName:
+          type: string
+          description: Officer's last name
+          example: "Mensah"
+        phone:
+          type: string
+          description: Officer's phone number
+          example: "+233241234567"
+        email:
+          type: string
+          format: email
+          description: Officer's email address
+          example: "kwame.mensah@gps.gov.gh"
+        rank:
+          $ref: "#/components/schemas/OfficerRank"
+        stationId:
+          type: string
+          format: uuid
+          description: ID of the station to reassign the officer to
+          example: "55667788-99aa-bbcc-ddee-ff0011223344"
+        role:
+          $ref: "#/components/schemas/UserRole"
+        isActive:
+          type: boolean
+          description: Whether the officer's account should be active
+          example: true
+        assignedDeviceId:
+          type: string
+          nullable: true
+          description: ID of the device to assign to this officer (null to unassign)
+          example: "device-xyz-789"
+
+    OfficerStats:
+      type: object
+      description: Performance and activity statistics for an officer
+      required:
+        - totalTickets
+        - ticketsThisMonth
+        - ticketsThisWeek
+        - ticketsToday
+        - totalFinesIssued
+        - totalCollected
+        - collectionRate
+        - averageFineAmount
+        - topOffences
+      properties:
+        totalTickets:
+          type: integer
+          description: Total number of tickets issued by the officer
+          example: 342
+        ticketsThisMonth:
+          type: integer
+          description: Number of tickets issued in the current calendar month
+          example: 28
+        ticketsThisWeek:
+          type: integer
+          description: Number of tickets issued in the current calendar week
+          example: 7
+        ticketsToday:
+          type: integer
+          description: Number of tickets issued today
+          example: 2
+        totalFinesIssued:
+          type: number
+          format: double
+          description: Total monetary value of all fines issued (in GHS)
+          example: 171000.00
+        totalCollected:
+          type: number
+          format: double
+          description: Total monetary value of fines collected (in GHS)
+          example: 136800.00
+        collectionRate:
+          type: number
+          format: double
+          description: Percentage of issued fines that have been collected
+          minimum: 0
+          maximum: 100
+          example: 80.0
+        averageFineAmount:
+          type: number
+          format: double
+          description: Average fine amount per ticket (in GHS)
+          example: 500.00
+        topOffences:
+          type: array
+          description: Most common offences ticketed by this officer, ordered by count descending
+          items:
+            $ref: "#/components/schemas/TopOffence"
+
+    TopOffence:
+      type: object
+      description: An offence type with its occurrence count for an officer
+      required:
+        - offenceCode
+        - offenceName
+        - count
+      properties:
+        offenceCode:
+          type: string
+          description: Unique code for the offence type
+          example: "SP-001"
+        offenceName:
+          type: string
+          description: Human-readable name of the offence
+          example: "Exceeding Speed Limit"
+        count:
+          type: integer
+          description: Number of times this offence was ticketed
+          example: 98
+
+    Station:
+      type: object
+      description: Police station details
+      required:
+        - id
+        - name
+        - code
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique station identifier
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        name:
+          type: string
+          description: Station name
+          example: "Accra Central Police Station"
+        code:
+          type: string
+          description: Station code
+          example: "ACC-001"
+
+    OfficerRank:
+      type: string
+      description: Enumeration of all Ghana Police Service officer ranks
+      enum:
+        - constable
+        - lance_corporal
+        - corporal
+        - sergeant
+        - staff_sergeant
+        - warrant_officer_ii
+        - warrant_officer_i
+        - inspector
+        - chief_inspector
+        - assistant_superintendent
+        - deputy_superintendent
+        - superintendent
+        - chief_superintendent
+        - assistant_commissioner
+        - deputy_commissioner
+        - commissioner
+      example: "inspector"
+
+    UserRole:
+      type: string
+      description: Enumeration of system user roles
+      enum:
+        - officer
+        - supervisor
+        - admin
+        - accountant
+        - super_admin
+      example: "officer"
+
+    PaginatedOfficerListResponse:
+      type: object
+      description: Paginated response containing a list of officers
+      required:
+        - items
+        - pagination
+      properties:
+        items:
+          type: array
+          description: List of officer records for the current page
+          items:
+            $ref: "#/components/schemas/OfficerListItem"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    Pagination:
+      type: object
+      description: Pagination metadata
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          minimum: 1
+          example: 1
+        limit:
+          type: integer
+          description: Number of records per page
+          minimum: 1
+          example: 20
+        totalItems:
+          type: integer
+          description: Total number of records across all pages
+          example: 85
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 5
+
+    ApiResponse:
+      type: object
+      description: Standard API success response wrapper
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the request was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable response message
+          example: "Operation completed successfully"
+        data:
+          description: Response payload (varies by endpoint)
+
+    ApiError:
+      type: object
+      description: Standard API error response wrapper
+      required:
+        - success
+        - message
+        - error
+      properties:
+        success:
+          type: boolean
+          description: Always false for error responses
+          example: false
+        message:
+          type: string
+          description: Human-readable error summary
+          example: "Request failed"
+        error:
+          type: object
+          required:
+            - code
+            - details
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "VALIDATION_ERROR"
+            details:
+              type: string
+              description: Detailed error description
+              example: "One or more fields failed validation."

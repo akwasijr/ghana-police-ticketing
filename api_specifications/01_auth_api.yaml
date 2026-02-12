@@ -1,0 +1,810 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Authentication API"
+  description: >
+    Authentication and identity management service for the Ghana Police Ticketing System.
+    Handles user login, token management, password operations, and profile management
+    for all system users including officers, supervisors, admins, and accountants.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security: []
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: >
+        Authenticates a user by email or badge number along with a password.
+        Returns user profile information, officer details (if applicable), and JWT tokens.
+        Optionally accepts device information for mobile session tracking.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              badgeNumber: "GPS-12345"
+              password: "securePassword123"
+              deviceId: "device-abc-123"
+              deviceInfo:
+                platform: "android"
+                model: "Samsung Galaxy A54"
+                osVersion: "14.0"
+                appVersion: "1.2.0"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+              example:
+                success: true
+                message: "Login successful"
+                data:
+                  user:
+                    id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    email: "kwame.mensah@gps.gov.gh"
+                    firstName: "Kwame"
+                    lastName: "Mensah"
+                    fullName: "Kwame Mensah"
+                    phone: "+233241234567"
+                    role: "officer"
+                    isActive: true
+                    createdAt: "2025-01-15T08:30:00Z"
+                    lastLogin: "2025-06-10T14:22:00Z"
+                    profilePhoto: "https://storage.example.com/photos/kmensah.jpg"
+                    officer:
+                      id: "f1e2d3c4-b5a6-7890-abcd-ef1234567890"
+                      badgeNumber: "GPS-12345"
+                      rank: "inspector"
+                      rankDisplay: "Inspector"
+                      station:
+                        id: "11223344-5566-7788-99aa-bbccddeeff00"
+                        name: "Accra Central Police Station"
+                        code: "ACC-001"
+                      stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                      regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                  tokens:
+                    accessToken: "eyJhbGciOiJIUzI1NiIs..."
+                    refreshToken: "dGhpcyBpcyBhIHJlZnJlc2g..."
+                    expiresIn: 3600
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                success: false
+                message: "Invalid credentials"
+                error:
+                  code: "INVALID_CREDENTIALS"
+                  details: "The email/badge number or password provided is incorrect."
+        "423":
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                success: false
+                message: "Account locked"
+                error:
+                  code: "ACCOUNT_LOCKED"
+                  details: "Account has been locked due to multiple failed login attempts. Please contact an administrator."
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: >
+        Logs out the current user by invalidating their session and optionally
+        revoking the provided refresh token.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: The refresh token to revoke
+                  example: "dGhpcyBpcyBhIHJlZnJlc2g..."
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                success: true
+                message: "Logout successful"
+        "401":
+          description: Unauthorized - invalid or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: >
+        Generates a new access token using a valid refresh token.
+        No bearer token is required for this endpoint.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refreshToken: "dGhpcyBpcyBhIHJlZnJlc2g..."
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RefreshResponse"
+              example:
+                success: true
+                message: "Token refreshed successfully"
+                data:
+                  accessToken: "eyJhbGciOiJIUzI1NiIs..."
+                  expiresIn: 3600
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                success: false
+                message: "Invalid refresh token"
+                error:
+                  code: "INVALID_REFRESH_TOKEN"
+                  details: "The refresh token is invalid or has expired."
+
+  /auth/profile:
+    get:
+      tags:
+        - Profile
+      summary: Get current user profile
+      description: >
+        Retrieves the full profile of the currently authenticated user,
+        including officer details if the user is an officer.
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+              example:
+                success: true
+                message: "Profile retrieved successfully"
+                data:
+                  id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  email: "kwame.mensah@gps.gov.gh"
+                  firstName: "Kwame"
+                  lastName: "Mensah"
+                  fullName: "Kwame Mensah"
+                  phone: "+233241234567"
+                  role: "officer"
+                  isActive: true
+                  createdAt: "2025-01-15T08:30:00Z"
+                  lastLogin: "2025-06-10T14:22:00Z"
+                  profilePhoto: "https://storage.example.com/photos/kmensah.jpg"
+                  officer:
+                    id: "f1e2d3c4-b5a6-7890-abcd-ef1234567890"
+                    badgeNumber: "GPS-12345"
+                    rank: "inspector"
+                    rankDisplay: "Inspector"
+                    station:
+                      id: "11223344-5566-7788-99aa-bbccddeeff00"
+                      name: "Accra Central Police Station"
+                      code: "ACC-001"
+                    stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                    regionId: "aabbccdd-eeff-0011-2233-445566778899"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+    put:
+      tags:
+        - Profile
+      summary: Update current user profile
+      description: >
+        Updates the profile of the currently authenticated user.
+        Only provided fields will be updated; omitted fields remain unchanged.
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: User's first name
+                  example: "Kwame"
+                lastName:
+                  type: string
+                  description: User's last name
+                  example: "Mensah"
+                phone:
+                  type: string
+                  description: User's phone number
+                  example: "+233241234567"
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                  example: "kwame.mensah@gps.gov.gh"
+                profilePhoto:
+                  type: string
+                  format: uri
+                  description: URL of the user's profile photo
+                  example: "https://storage.example.com/photos/kmensah-new.jpg"
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+              example:
+                success: true
+                message: "Profile updated successfully"
+                data:
+                  id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  email: "kwame.mensah@gps.gov.gh"
+                  firstName: "Kwame"
+                  lastName: "Mensah"
+                  fullName: "Kwame Mensah"
+                  phone: "+233241234567"
+                  role: "officer"
+                  isActive: true
+                  createdAt: "2025-01-15T08:30:00Z"
+                  lastLogin: "2025-06-10T14:22:00Z"
+                  profilePhoto: "https://storage.example.com/photos/kmensah-new.jpg"
+                  officer:
+                    id: "f1e2d3c4-b5a6-7890-abcd-ef1234567890"
+                    badgeNumber: "GPS-12345"
+                    rank: "inspector"
+                    rankDisplay: "Inspector"
+                    station:
+                      id: "11223344-5566-7788-99aa-bbccddeeff00"
+                      name: "Accra Central Police Station"
+                      code: "ACC-001"
+                    stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                    regionId: "aabbccdd-eeff-0011-2233-445566778899"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /auth/change-password:
+    post:
+      tags:
+        - Password Management
+      summary: Change password
+      description: >
+        Changes the password for the currently authenticated user.
+        Requires the current password for verification.
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+            example:
+              currentPassword: "oldSecurePassword123"
+              newPassword: "newSecurePassword456"
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                success: true
+                message: "Password changed successfully"
+        "400":
+          description: Validation error (e.g., new password does not meet requirements)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Current password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                success: false
+                message: "Current password is incorrect"
+                error:
+                  code: "INVALID_PASSWORD"
+                  details: "The current password provided does not match."
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Password Management
+      summary: Request password reset
+      description: >
+        Initiates a password reset flow by sending a reset link or code to the
+        user's registered email address. Always returns a success response
+        regardless of whether the email exists, to prevent user enumeration.
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: The email address associated with the account
+                  example: "kwame.mensah@gps.gov.gh"
+      responses:
+        "200":
+          description: >
+            Password reset instructions sent. This response is returned
+            regardless of whether the email exists in the system.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                success: true
+                message: "If an account with that email exists, password reset instructions have been sent."
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Password Management
+      summary: Reset password with token
+      description: >
+        Resets the user's password using a valid reset token obtained from
+        the forgot-password flow.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+            example:
+              token: "reset-token-abc123def456"
+              newPassword: "newSecurePassword789"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                success: true
+                message: "Password has been reset successfully. You may now log in with your new password."
+        "400":
+          description: Invalid or expired reset token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                success: false
+                message: "Invalid reset token"
+                error:
+                  code: "INVALID_RESET_TOKEN"
+                  details: "The reset token is invalid or has expired. Please request a new password reset."
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from the login endpoint
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address (provide either email or badgeNumber)
+          example: "kwame.mensah@gps.gov.gh"
+        badgeNumber:
+          type: string
+          description: Officer's badge number (provide either email or badgeNumber)
+          example: "GPS-12345"
+        password:
+          type: string
+          format: password
+          description: User's password
+          minLength: 8
+          example: "securePassword123"
+        deviceId:
+          type: string
+          description: Unique identifier of the device being used for login
+          example: "device-abc-123"
+        deviceInfo:
+          type: object
+          description: Information about the device used for login
+          properties:
+            platform:
+              type: string
+              description: Device platform
+              example: "android"
+              enum:
+                - android
+                - ios
+                - web
+            model:
+              type: string
+              description: Device model name
+              example: "Samsung Galaxy A54"
+            osVersion:
+              type: string
+              description: Operating system version
+              example: "14.0"
+            appVersion:
+              type: string
+              description: Application version
+              example: "1.2.0"
+
+    LoginResponse:
+      type: object
+      required:
+        - user
+        - tokens
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        tokens:
+          $ref: "#/components/schemas/AuthTokens"
+
+    User:
+      type: object
+      required:
+        - id
+        - firstName
+        - lastName
+        - fullName
+        - role
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "kwame.mensah@gps.gov.gh"
+        firstName:
+          type: string
+          description: User's first name
+          example: "Kwame"
+        lastName:
+          type: string
+          description: User's last name
+          example: "Mensah"
+        fullName:
+          type: string
+          description: User's full display name
+          example: "Kwame Mensah"
+        phone:
+          type: string
+          description: User's phone number
+          example: "+233241234567"
+        role:
+          type: string
+          description: User's role in the system
+          enum:
+            - officer
+            - supervisor
+            - admin
+            - accountant
+            - super_admin
+          example: "officer"
+        isActive:
+          type: boolean
+          description: Whether the user account is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the user account was created
+          example: "2025-01-15T08:30:00Z"
+        lastLogin:
+          type: string
+          format: date-time
+          description: Timestamp of the user's most recent login
+          example: "2025-06-10T14:22:00Z"
+        profilePhoto:
+          type: string
+          format: uri
+          description: URL of the user's profile photo
+          example: "https://storage.example.com/photos/kmensah.jpg"
+        officer:
+          $ref: "#/components/schemas/Officer"
+
+    Officer:
+      type: object
+      description: Officer-specific details, present only when the user is an officer
+      required:
+        - id
+        - badgeNumber
+        - rank
+        - rankDisplay
+        - stationId
+        - regionId
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique officer record identifier
+          example: "f1e2d3c4-b5a6-7890-abcd-ef1234567890"
+        badgeNumber:
+          type: string
+          description: Officer's unique badge number
+          example: "GPS-12345"
+        rank:
+          type: string
+          description: Officer's rank code
+          enum:
+            - constable
+            - lance_corporal
+            - corporal
+            - sergeant
+            - staff_sergeant
+            - warrant_officer_ii
+            - warrant_officer_i
+            - inspector
+            - chief_inspector
+            - assistant_superintendent
+            - deputy_superintendent
+            - superintendent
+            - chief_superintendent
+            - assistant_commissioner
+            - deputy_commissioner
+            - commissioner
+          example: "inspector"
+        rankDisplay:
+          type: string
+          description: Human-readable display name for the officer's rank
+          example: "Inspector"
+        station:
+          $ref: "#/components/schemas/Station"
+        stationId:
+          type: string
+          format: uuid
+          description: ID of the station the officer is assigned to
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        regionId:
+          type: string
+          format: uuid
+          description: ID of the region the officer's station belongs to
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+
+    Station:
+      type: object
+      description: Police station summary
+      required:
+        - id
+        - name
+        - code
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique station identifier
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        name:
+          type: string
+          description: Station name
+          example: "Accra Central Police Station"
+        code:
+          type: string
+          description: Station code
+          example: "ACC-001"
+
+    AuthTokens:
+      type: object
+      description: JWT authentication tokens
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token for authenticating API requests
+          example: "eyJhbGciOiJIUzI1NiIs..."
+        refreshToken:
+          type: string
+          description: Refresh token for obtaining new access tokens
+          example: "dGhpcyBpcyBhIHJlZnJlc2g..."
+        expiresIn:
+          type: integer
+          description: Access token expiry time in seconds
+          example: 3600
+
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: The refresh token to use for obtaining a new access token
+          example: "dGhpcyBpcyBhIHJlZnJlc2g..."
+
+    RefreshResponse:
+      type: object
+      required:
+        - accessToken
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+          description: New JWT access token
+          example: "eyJhbGciOiJIUzI1NiIs..."
+        expiresIn:
+          type: integer
+          description: Access token expiry time in seconds
+          example: 3600
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          description: The user's current password
+          example: "oldSecurePassword123"
+        newPassword:
+          type: string
+          format: password
+          description: The new password to set
+          minLength: 8
+          example: "newSecurePassword456"
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          description: Password reset token received via email
+          example: "reset-token-abc123def456"
+        newPassword:
+          type: string
+          format: password
+          description: The new password to set
+          minLength: 8
+          example: "newSecurePassword789"
+
+    ApiResponse:
+      type: object
+      description: Standard API success response wrapper
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Indicates whether the request was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable response message
+          example: "Operation completed successfully"
+        data:
+          description: Response payload (varies by endpoint)
+
+    ApiError:
+      type: object
+      description: Standard API error response wrapper
+      required:
+        - success
+        - message
+        - error
+      properties:
+        success:
+          type: boolean
+          description: Always false for error responses
+          example: false
+        message:
+          type: string
+          description: Human-readable error summary
+          example: "Request failed"
+        error:
+          type: object
+          required:
+            - code
+            - details
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "VALIDATION_ERROR"
+            details:
+              type: string
+              description: Detailed error description
+              example: "One or more fields failed validation."

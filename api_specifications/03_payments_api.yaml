@@ -1,0 +1,983 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Payments API"
+  description: >
+    Payment processing for traffic violation tickets. Supports mobile money
+    (MTN MoMo, Vodafone Cash, AirtelTigo), bank transfer, card, and cash payments.
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Payments
+    description: Payment processing and management
+
+paths:
+  /payments/initiate:
+    post:
+      tags:
+        - Payments
+      summary: Initiate digital payment
+      description: >
+        Initiate a digital payment for a traffic violation ticket. Supports mobile money
+        (MTN MoMo, Vodafone Cash, AirtelTigo), bank transfer, and card payments.
+        Ticket must be in unpaid or overdue status. Creates a pending payment record.
+      operationId: initiatePayment
+      security:
+        - bearerAuth: []
+      x-roles:
+        - admin
+        - super_admin
+        - accountant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiatePaymentRequest"
+      responses:
+        "201":
+          description: Payment initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitiatePaymentResponse"
+        "400":
+          description: Invalid request or ticket not eligible for payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Ticket already has a pending or completed payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/verify:
+    post:
+      tags:
+        - Payments
+      summary: Verify payment status
+      description: >
+        Verify the status of a payment by checking with the payment provider.
+        Updates the payment and ticket status accordingly.
+      operationId: verifyPayment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPaymentRequest"
+      responses:
+        "200":
+          description: Payment verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyPaymentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/cash:
+    post:
+      tags:
+        - Payments
+      summary: Record cash payment at station
+      description: >
+        Record a cash payment made at a police station. Immediately marks the payment
+        as completed, updates the ticket status to paid, and generates a receipt.
+      operationId: recordCashPayment
+      security:
+        - bearerAuth: []
+      x-roles:
+        - admin
+        - super_admin
+        - accountant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordCashPaymentRequest"
+      responses:
+        "201":
+          description: Cash payment recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "400":
+          description: Invalid request or ticket not eligible for payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Ticket already paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments:
+    get:
+      tags:
+        - Payments
+      summary: List payments with pagination and filters
+      description: Retrieve a paginated list of payments with optional filtering and sorting.
+      operationId: listPayments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Search by payment reference, ticket number, payer name, or phone
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Comma-separated list of payment statuses to filter by
+          schema:
+            type: string
+            example: "pending,completed"
+        - name: method
+          in: query
+          description: Comma-separated list of payment methods to filter by
+          schema:
+            type: string
+            example: "momo,cash"
+        - name: dateFrom
+          in: query
+          description: Filter payments from this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: dateTo
+          in: query
+          description: Filter payments up to this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: minAmount
+          in: query
+          description: Minimum payment amount filter
+          schema:
+            type: number
+            format: double
+        - name: maxAmount
+          in: query
+          description: Maximum payment amount filter
+          schema:
+            type: number
+            format: double
+        - name: stationId
+          in: query
+          description: Filter by station ID
+          schema:
+            type: string
+            format: uuid
+        - name: processedById
+          in: query
+          description: Filter by the ID of the user who processed the payment
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum:
+              - createdAt
+              - amount
+              - status
+              - method
+              - completedAt
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of payments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedPaymentResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/{id}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment by ID
+      description: Retrieve the full details of a specific payment.
+      operationId: getPaymentById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Payment ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/stats:
+    get:
+      tags:
+        - Payments
+      summary: Get payment statistics
+      description: Retrieve aggregated payment statistics with optional date and station filters.
+      operationId: getPaymentStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dateFrom
+          in: query
+          description: Start date for statistics period (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: dateTo
+          in: query
+          description: End date for statistics period (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: stationId
+          in: query
+          description: Filter statistics by station ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Payment statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/{id}/receipt:
+    get:
+      tags:
+        - Payments
+      summary: Get payment receipt
+      description: Retrieve the receipt for a completed payment.
+      operationId: getPaymentReceipt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Payment ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Payment receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReceipt"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payment or receipt not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the authentication service
+
+  schemas:
+    PaymentMethod:
+      type: string
+      enum:
+        - momo
+        - vodacash
+        - airteltigo
+        - bank
+        - card
+        - cash
+      description: >
+        Supported payment methods:
+        * momo - MTN Mobile Money
+        * vodacash - Vodafone Cash
+        * airteltigo - AirtelTigo Money
+        * bank - Bank transfer
+        * card - Debit/credit card
+        * cash - Cash payment at station
+
+    PaymentStatus:
+      type: string
+      enum:
+        - pending
+        - processing
+        - completed
+        - failed
+        - refunded
+      description: >
+        Payment lifecycle statuses:
+        * pending - Payment initiated, awaiting processing
+        * processing - Payment is being processed by provider
+        * completed - Payment successfully completed
+        * failed - Payment failed or was declined
+        * refunded - Payment was refunded
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique payment identifier
+        paymentReference:
+          type: string
+          description: Unique payment reference code
+          example: "PAY-2026-0001234"
+        ticketId:
+          type: string
+          format: uuid
+          description: Associated ticket ID
+        ticketNumber:
+          type: string
+          description: Associated ticket number
+          example: "TKT-2026-00567"
+        amount:
+          type: number
+          format: double
+          description: Total payment amount
+          example: 200.00
+        currency:
+          type: string
+          description: Currency code
+          default: "GHS"
+          example: "GHS"
+        originalFine:
+          type: number
+          format: double
+          description: Original fine amount from the ticket
+          example: 200.00
+        lateFee:
+          type: number
+          format: double
+          description: Late payment fee if applicable
+          example: 0.00
+        discount:
+          type: number
+          format: double
+          description: Discount applied if any
+          example: 0.00
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        phoneNumber:
+          type: string
+          description: Phone number used for mobile money payment
+          example: "0241234567"
+        network:
+          type: string
+          description: Mobile network for mobile money payments
+          example: "MTN"
+        transactionId:
+          type: string
+          description: Transaction ID from the payment provider
+          example: "TXN-987654321"
+        cardLast4:
+          type: string
+          description: Last 4 digits of card number (card payments only)
+          example: "4321"
+        cardBrand:
+          type: string
+          description: Card brand (card payments only)
+          example: "Visa"
+        bankName:
+          type: string
+          description: Bank name (bank transfer payments only)
+          example: "GCB Bank"
+        accountNumber:
+          type: string
+          description: Masked account number (bank transfer payments only)
+          example: "****5678"
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        statusMessage:
+          type: string
+          description: Human-readable status message or error description
+          example: "Payment completed successfully"
+        payerName:
+          type: string
+          description: Name of the person making the payment
+          example: "Kwame Asante"
+        payerPhone:
+          type: string
+          description: Phone number of the payer
+          example: "0241234567"
+        payerEmail:
+          type: string
+          format: email
+          description: Email address of the payer
+          example: "kwame@example.com"
+        receiptNumber:
+          type: string
+          description: Generated receipt number for completed payments
+          example: "RCP-2026-0001234"
+        processedById:
+          type: string
+          format: uuid
+          description: ID of the officer/staff who processed the payment
+        processedByName:
+          type: string
+          description: Name of the officer/staff who processed the payment
+          example: "Sgt. Mensah"
+        stationId:
+          type: string
+          format: uuid
+          description: Station where the payment was processed
+        providerResponse:
+          type: object
+          description: Raw response from the payment provider (for debugging)
+          additionalProperties: true
+        processedAt:
+          type: string
+          format: date-time
+          description: When the payment was processed
+        completedAt:
+          type: string
+          format: date-time
+          description: When the payment was completed
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the payment session expires
+        createdAt:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Record last update timestamp
+      required:
+        - id
+        - paymentReference
+        - ticketId
+        - ticketNumber
+        - amount
+        - currency
+        - method
+        - status
+        - createdAt
+        - updatedAt
+
+    InitiatePaymentRequest:
+      type: object
+      properties:
+        ticketId:
+          type: string
+          format: uuid
+          description: ID of the ticket to pay for
+        method:
+          type: string
+          enum:
+            - momo
+            - vodacash
+            - airteltigo
+            - bank
+            - card
+          description: Payment method (cash not allowed via this endpoint)
+        phoneNumber:
+          type: string
+          description: Phone number for mobile money payments (required for momo, vodacash, airteltigo)
+          pattern: "^0[235]\\d{8}$"
+          example: "0241234567"
+        payerName:
+          type: string
+          description: Name of the person making the payment
+          example: "Kwame Asante"
+        payerEmail:
+          type: string
+          format: email
+          description: Email address for payment confirmation
+          example: "kwame@example.com"
+      required:
+        - ticketId
+        - method
+
+    InitiatePaymentResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+          description: Unique identifier for the created payment
+        paymentReference:
+          type: string
+          description: Payment reference code for tracking
+          example: "PAY-2026-0001234"
+        amount:
+          type: number
+          format: double
+          description: Total amount to be paid
+          example: 200.00
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        redirectUrl:
+          type: string
+          format: uri
+          description: URL to redirect to for card or bank payments
+          example: "https://payment-provider.com/pay/abc123"
+        ussdCode:
+          type: string
+          description: USSD code to dial for mobile money payments
+          example: "*920*44#"
+        instructions:
+          type: string
+          description: Human-readable payment instructions
+          example: "Dial *920*44# and follow the prompts to complete your payment"
+        expiresAt:
+          type: string
+          format: date-time
+          description: When this payment session expires
+      required:
+        - paymentId
+        - paymentReference
+        - amount
+        - method
+        - instructions
+        - expiresAt
+
+    RecordCashPaymentRequest:
+      type: object
+      properties:
+        ticketId:
+          type: string
+          format: uuid
+          description: ID of the ticket being paid
+        amount:
+          type: number
+          format: double
+          description: Cash amount received
+          minimum: 0.01
+          example: 200.00
+        payerName:
+          type: string
+          description: Name of the person making the cash payment
+          example: "Kwame Asante"
+        payerPhone:
+          type: string
+          description: Phone number of the payer
+          example: "0241234567"
+        notes:
+          type: string
+          description: Additional notes about the cash payment
+          example: "Payment received at front desk"
+      required:
+        - ticketId
+        - amount
+        - payerName
+
+    VerifyPaymentRequest:
+      type: object
+      properties:
+        paymentReference:
+          type: string
+          description: Payment reference code to verify
+          example: "PAY-2026-0001234"
+        transactionId:
+          type: string
+          description: Optional transaction ID from the payment provider
+          example: "TXN-987654321"
+      required:
+        - paymentReference
+
+    VerifyPaymentResponse:
+      type: object
+      properties:
+        payment:
+          $ref: "#/components/schemas/Payment"
+        ticket:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: Ticket ID
+            ticketNumber:
+              type: string
+              description: Ticket number
+              example: "TKT-2026-00567"
+            status:
+              type: string
+              description: Updated ticket status
+              example: "paid"
+          required:
+            - id
+            - ticketNumber
+            - status
+      required:
+        - payment
+        - ticket
+
+    PaymentStats:
+      type: object
+      properties:
+        totalPayments:
+          type: integer
+          description: Total number of payments in the period
+          example: 1250
+        totalAmount:
+          type: number
+          format: double
+          description: Total amount of all payments
+          example: 456000.00
+        byStatus:
+          type: object
+          properties:
+            pending:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  example: 45
+              required:
+                - count
+            completed:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  example: 1100
+              required:
+                - count
+            failed:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  example: 80
+              required:
+                - count
+            refunded:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  example: 25
+              required:
+                - count
+          required:
+            - pending
+            - completed
+            - failed
+            - refunded
+        byMethod:
+          type: object
+          properties:
+            momo:
+              $ref: "#/components/schemas/MethodStats"
+            vodacash:
+              $ref: "#/components/schemas/MethodStats"
+            airteltigo:
+              $ref: "#/components/schemas/MethodStats"
+            bank:
+              $ref: "#/components/schemas/MethodStats"
+            card:
+              $ref: "#/components/schemas/MethodStats"
+            cash:
+              $ref: "#/components/schemas/MethodStats"
+          required:
+            - momo
+            - vodacash
+            - airteltigo
+            - bank
+            - card
+            - cash
+        todayAmount:
+          type: number
+          format: double
+          description: Total payment amount for today
+          example: 5400.00
+        weekAmount:
+          type: number
+          format: double
+          description: Total payment amount for the current week
+          example: 32000.00
+        monthAmount:
+          type: number
+          format: double
+          description: Total payment amount for the current month
+          example: 128000.00
+      required:
+        - totalPayments
+        - totalAmount
+        - byStatus
+        - byMethod
+        - todayAmount
+        - weekAmount
+        - monthAmount
+
+    MethodStats:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: Number of payments using this method
+          example: 450
+        amount:
+          type: number
+          format: double
+          description: Total amount collected via this method
+          example: 90000.00
+      required:
+        - count
+        - amount
+
+    PaymentReceipt:
+      type: object
+      properties:
+        receiptNumber:
+          type: string
+          description: Unique receipt number
+          example: "RCP-2026-0001234"
+        ticketNumber:
+          type: string
+          description: Associated ticket number
+          example: "TKT-2026-00567"
+        vehicleReg:
+          type: string
+          description: Vehicle registration number
+          example: "GR-1234-21"
+        payerName:
+          type: string
+          description: Name of the payer
+          example: "Kwame Asante"
+        amount:
+          type: number
+          format: double
+          description: Amount paid
+          example: 200.00
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        transactionId:
+          type: string
+          description: Transaction ID from payment provider
+          example: "TXN-987654321"
+        paidAt:
+          type: string
+          format: date-time
+          description: When the payment was completed
+        processedBy:
+          type: string
+          description: Name of the officer who processed the payment
+          example: "Sgt. Mensah"
+        stationName:
+          type: string
+          description: Name of the station where payment was processed
+          example: "Accra Central Police Station"
+      required:
+        - receiptNumber
+        - ticketNumber
+        - vehicleReg
+        - payerName
+        - amount
+        - method
+        - paidAt
+        - stationName
+
+    PaginatedPaymentResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required:
+        - data
+        - pagination
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        totalItems:
+          type: integer
+          description: Total number of matching items
+          example: 256
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 13
+        hasNextPage:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPreviousPage:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Ticket not found"
+        error:
+          type: string
+          description: Error code
+          example: "NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+      required:
+        - success
+        - message

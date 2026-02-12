@@ -1,0 +1,600 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Traffic Offences API"
+  description: |
+    Manage the catalog of traffic offences used in the Ghana Police Ticketing System.
+
+    Each offence has a unique code (pattern `XXX-000`), belongs to a category, and defines
+    fine ranges (minFine, defaultFine, maxFine) along with penalty points.
+
+    This is a relatively small reference catalog, so list endpoints return the full
+    collection without pagination.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Offences
+    description: Traffic offence catalog management
+
+paths:
+  # ── List / Create ────────────────────────────────────────────────────
+  /offences:
+    get:
+      tags: [Offences]
+      summary: List offences
+      description: |
+        Returns all offences, optionally filtered by category, active status, or search term.
+        No pagination — the offence catalog is a small, bounded dataset.
+        Accessible by any authenticated user.
+      operationId: listOffences
+      parameters:
+        - name: category
+          in: query
+          description: Filter by offence category
+          required: false
+          schema:
+            $ref: "#/components/schemas/OffenceCategory"
+        - name: isActive
+          in: query
+          description: Filter by active status
+          required: false
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          description: Search by offence name, code, or description
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of offences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Offence"
+              example:
+                success: true
+                data:
+                  - id: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                    code: "SPD-001"
+                    name: "Exceeding Speed Limit"
+                    description: "Driving above the posted or statutory speed limit on any road"
+                    legalBasis: "Road Traffic Act, 2004 (Act 683) Section 47"
+                    category: "speed"
+                    defaultFine: 500.00
+                    minFine: 200.00
+                    maxFine: 1000.00
+                    points: 3
+                    isActive: true
+                    createdAt: "2025-01-15T10:30:00Z"
+                    updatedAt: "2025-01-15T10:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Offences]
+      summary: Create an offence
+      description: |
+        Create a new traffic offence entry. Requires `admin` or `super_admin` role.
+
+        Validation rules:
+        - `code` must be unique and match the pattern `^[A-Z]{3}-\d{3}$`
+        - `defaultFine` must be between `minFine` and `maxFine`
+        - `minFine` must be >= 0
+        - `maxFine` must be >= `minFine`
+        - `points` must be an integer between 0 and 10
+      operationId: createOffence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOffenceRequest"
+      responses:
+        "201":
+          description: Offence created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Offence"
+              example:
+                success: true
+                data:
+                  id: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                  code: "SPD-001"
+                  name: "Exceeding Speed Limit"
+                  description: "Driving above the posted or statutory speed limit on any road"
+                  legalBasis: "Road Traffic Act, 2004 (Act 683) Section 47"
+                  category: "speed"
+                  defaultFine: 500.00
+                  minFine: 200.00
+                  maxFine: 1000.00
+                  points: 3
+                  isActive: true
+                  createdAt: "2025-01-15T10:30:00Z"
+                  updatedAt: "2025-01-15T10:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Get / Update / Delete by ID ─────────────────────────────────────
+  /offences/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      tags: [Offences]
+      summary: Get offence by ID
+      description: Returns a single offence by its ID. Accessible by any authenticated user.
+      operationId: getOffence
+      responses:
+        "200":
+          description: Offence details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Offence"
+              example:
+                success: true
+                data:
+                  id: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                  code: "SPD-001"
+                  name: "Exceeding Speed Limit"
+                  description: "Driving above the posted or statutory speed limit on any road"
+                  legalBasis: "Road Traffic Act, 2004 (Act 683) Section 47"
+                  category: "speed"
+                  defaultFine: 500.00
+                  minFine: 200.00
+                  maxFine: 1000.00
+                  points: 3
+                  isActive: true
+                  createdAt: "2025-01-15T10:30:00Z"
+                  updatedAt: "2025-01-15T10:30:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Offences]
+      summary: Update an offence
+      description: |
+        Partial update of an existing offence. Requires `admin` or `super_admin` role.
+
+        The `code` field is immutable if the offence has been used in any tickets.
+        All fine-range validations still apply when updating fine values.
+      operationId: updateOffence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOffenceRequest"
+      responses:
+        "200":
+          description: Offence updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Offence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Code cannot be changed — offence is used in existing tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot change offence code — it is referenced by existing tickets"
+    delete:
+      tags: [Offences]
+      summary: Soft-delete an offence
+      description: |
+        Soft-delete (deactivate) an offence. Requires `super_admin` role.
+        Cannot delete if the offence is used in active (unpaid) tickets.
+      operationId: deleteOffence
+      responses:
+        "200":
+          description: Offence deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Offence deleted successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot delete — offence is used in active unpaid tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot delete offence — it is referenced by active unpaid tickets"
+
+  # ── Toggle Active Status ─────────────────────────────────────────────
+  /offences/{id}/toggle:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      tags: [Offences]
+      summary: Toggle offence active status
+      description: |
+        Toggle the `isActive` flag of an offence. Requires `admin` or `super_admin` role.
+        Cannot deactivate if the offence is currently used in active (unpaid) tickets.
+      operationId: toggleOffence
+      responses:
+        "200":
+          description: Offence toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Offence"
+              example:
+                success: true
+                data:
+                  id: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                  code: "SPD-001"
+                  name: "Exceeding Speed Limit"
+                  description: "Driving above the posted or statutory speed limit on any road"
+                  legalBasis: "Road Traffic Act, 2004 (Act 683) Section 47"
+                  category: "speed"
+                  defaultFine: 500.00
+                  minFine: 200.00
+                  maxFine: 1000.00
+                  points: 3
+                  isActive: false
+                  createdAt: "2025-01-15T10:30:00Z"
+                  updatedAt: "2025-02-10T08:15:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot deactivate — offence is used in active tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                message: "Cannot deactivate offence — it is referenced by active unpaid tickets"
+
+# ── Components ───────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      description: Offence UUID
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Validation failed"
+            errors:
+              - field: "code"
+                message: "Code must match pattern ^[A-Z]{3}-\\d{3}$"
+              - field: "defaultFine"
+                message: "defaultFine must be between minFine and maxFine"
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Authentication required"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Insufficient permissions"
+    NotFound:
+      description: Offence not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Offence not found"
+    Conflict:
+      description: Duplicate offence code
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "An offence with code 'SPD-001' already exists"
+
+  schemas:
+    # ── Offence Category Enum ──────────────────────────────────────────
+    OffenceCategory:
+      type: string
+      enum:
+        - speed
+        - traffic_signal
+        - documentation
+        - vehicle_condition
+        - parking
+        - dangerous_driving
+        - licensing
+        - other
+      example: "speed"
+
+    # ── Offence ────────────────────────────────────────────────────────
+    Offence:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - description
+        - legalBasis
+        - category
+        - defaultFine
+        - minFine
+        - maxFine
+        - points
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "e5f6a7b8-c9d0-1234-efab-345678901234"
+        code:
+          type: string
+          pattern: "^[A-Z]{3}-\\d{3}$"
+          description: "Unique offence code (e.g. SPD-001)"
+          example: "SPD-001"
+        name:
+          type: string
+          example: "Exceeding Speed Limit"
+        description:
+          type: string
+          example: "Driving above the posted or statutory speed limit on any road"
+        legalBasis:
+          type: string
+          example: "Road Traffic Act, 2004 (Act 683) Section 47"
+        category:
+          $ref: "#/components/schemas/OffenceCategory"
+        defaultFine:
+          type: number
+          format: double
+          description: "Default fine amount in GHS. Must be between minFine and maxFine."
+          example: 500.00
+        minFine:
+          type: number
+          format: double
+          minimum: 0
+          description: "Minimum fine amount in GHS"
+          example: 200.00
+        maxFine:
+          type: number
+          format: double
+          description: "Maximum fine amount in GHS. Must be >= minFine."
+          example: 1000.00
+        points:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: "Penalty points (0-10)"
+          example: 3
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+
+    # ── Create Offence Request ─────────────────────────────────────────
+    CreateOffenceRequest:
+      type: object
+      required:
+        - code
+        - name
+        - description
+        - legalBasis
+        - category
+        - defaultFine
+        - minFine
+        - maxFine
+      properties:
+        code:
+          type: string
+          pattern: "^[A-Z]{3}-\\d{3}$"
+          description: "Unique offence code (e.g. SPD-001)"
+          example: "SPD-001"
+        name:
+          type: string
+          example: "Exceeding Speed Limit"
+        description:
+          type: string
+          example: "Driving above the posted or statutory speed limit on any road"
+        legalBasis:
+          type: string
+          example: "Road Traffic Act, 2004 (Act 683) Section 47"
+        category:
+          $ref: "#/components/schemas/OffenceCategory"
+        defaultFine:
+          type: number
+          format: double
+          description: "Default fine amount in GHS. Must be between minFine and maxFine."
+          example: 500.00
+        minFine:
+          type: number
+          format: double
+          minimum: 0
+          description: "Minimum fine amount in GHS. Must be >= 0."
+          example: 200.00
+        maxFine:
+          type: number
+          format: double
+          description: "Maximum fine amount in GHS. Must be >= minFine."
+          example: 1000.00
+        points:
+          type: integer
+          minimum: 0
+          maximum: 10
+          default: 0
+          description: "Penalty points (0-10). Defaults to 0."
+          example: 3
+
+    # ── Update Offence Request ─────────────────────────────────────────
+    UpdateOffenceRequest:
+      type: object
+      description: "Partial update. Only provided fields are updated. Code is immutable if used in tickets."
+      properties:
+        code:
+          type: string
+          pattern: "^[A-Z]{3}-\\d{3}$"
+          description: "Immutable if offence is referenced by tickets"
+          example: "SPD-001"
+        name:
+          type: string
+          example: "Exceeding Speed Limit"
+        description:
+          type: string
+          example: "Driving above the posted or statutory speed limit on any road"
+        legalBasis:
+          type: string
+          example: "Road Traffic Act, 2004 (Act 683) Section 47"
+        category:
+          $ref: "#/components/schemas/OffenceCategory"
+        defaultFine:
+          type: number
+          format: double
+          description: "Must be between minFine and maxFine"
+          example: 500.00
+        minFine:
+          type: number
+          format: double
+          minimum: 0
+          description: "Must be >= 0"
+          example: 200.00
+        maxFine:
+          type: number
+          format: double
+          description: "Must be >= minFine"
+          example: 1000.00
+        points:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: "Penalty points (0-10)"
+          example: 3
+
+    # ── Error Response ─────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "An error occurred"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string

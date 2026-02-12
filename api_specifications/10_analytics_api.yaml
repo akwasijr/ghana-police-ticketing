@@ -1,0 +1,815 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Analytics & Reporting API"
+  description: |
+    Aggregated analytics and reporting endpoints for dashboard visualizations
+    and PDF reports. All endpoints require admin+ role.
+
+    Key design decisions:
+    - All endpoints are read-only (GET). Data is aggregated from tickets,
+      payments, officers, and station records.
+    - Date-range filtering (startDate / endDate) is required on every endpoint
+      to bound query cost and ensure intentional reporting periods.
+    - Optional dimension filters (regionId, stationId, officerId) allow
+      drill-down without separate endpoints.
+    - Monetary values are returned as numbers (GHS) with two decimal precision.
+    - Collection rate and percentage fields are returned as numbers 0-100.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /analytics/summary:
+    get:
+      tags:
+        - Analytics
+      summary: Summary statistics
+      description: |
+        Returns high-level summary statistics for the given date range.
+        Useful for dashboard KPI cards.
+      operationId: getAnalyticsSummary
+      parameters:
+        - $ref: "#/components/parameters/startDate"
+        - $ref: "#/components/parameters/endDate"
+        - $ref: "#/components/parameters/regionId"
+        - $ref: "#/components/parameters/stationId"
+        - $ref: "#/components/parameters/officerId"
+      responses:
+        "200":
+          description: Summary statistics for the requested period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+              example:
+                totalTickets: 1245
+                totalFines: 248750.00
+                totalCollected: 187562.50
+                collectionRate: 75.4
+                averagePerOfficer: 62.25
+                activeOfficers: 20
+                activeStations: 5
+        "400":
+          description: Invalid or missing query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analytics/trends:
+    get:
+      tags:
+        - Analytics
+      summary: Trend data over time
+      description: |
+        Returns ticket and revenue data grouped by time period.
+        Intended for line/bar chart visualizations on the dashboard.
+      operationId: getAnalyticsTrends
+      parameters:
+        - $ref: "#/components/parameters/startDate"
+        - $ref: "#/components/parameters/endDate"
+        - name: groupBy
+          in: query
+          description: Time granularity for grouping data points
+          schema:
+            type: string
+            enum:
+              - day
+              - week
+              - month
+            default: day
+          example: "day"
+        - $ref: "#/components/parameters/regionId"
+        - $ref: "#/components/parameters/stationId"
+        - $ref: "#/components/parameters/officerId"
+      responses:
+        "200":
+          description: Array of trend data points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+              example:
+                - period: "2026-01-15"
+                  tickets: 42
+                  fines: 8400.00
+                  collected: 6300.00
+                - period: "2026-01-16"
+                  tickets: 38
+                  fines: 7600.00
+                  collected: 5700.00
+        "400":
+          description: Invalid or missing query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analytics/top-offences:
+    get:
+      tags:
+        - Analytics
+      summary: Most common offences
+      description: |
+        Returns the most frequently issued offences ranked by count.
+        Useful for pie/donut charts and offence category analysis.
+      operationId: getTopOffences
+      parameters:
+        - $ref: "#/components/parameters/startDate"
+        - $ref: "#/components/parameters/endDate"
+        - $ref: "#/components/parameters/regionId"
+        - $ref: "#/components/parameters/stationId"
+        - name: limit
+          in: query
+          description: Maximum number of offences to return
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+          example: 10
+      responses:
+        "200":
+          description: Array of top offences ranked by count
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopOffence"
+              example:
+                - offenceId: "c3d4e5f6-a1b2-7890-cdef-1234567890ab"
+                  code: "SPD-001"
+                  name: "Exceeding Speed Limit"
+                  category: "Moving Violations"
+                  count: 312
+                  totalAmount: 62400.00
+                  percentageOfTotal: 25.1
+                - offenceId: "d4e5f6a1-b2c3-7890-defg-234567890abc"
+                  code: "DUI-001"
+                  name: "Driving Under Influence"
+                  category: "Criminal"
+                  count: 187
+                  totalAmount: 93500.00
+                  percentageOfTotal: 15.0
+        "400":
+          description: Invalid or missing query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analytics/by-region:
+    get:
+      tags:
+        - Analytics
+      summary: Regional breakdown
+      description: |
+        Returns aggregated analytics broken down by region.
+        Useful for map visualizations and regional comparison tables.
+      operationId: getAnalyticsByRegion
+      parameters:
+        - $ref: "#/components/parameters/startDate"
+        - $ref: "#/components/parameters/endDate"
+      responses:
+        "200":
+          description: Array of regional analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegionAnalytics"
+              example:
+                - regionId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  regionName: "Greater Accra"
+                  regionCode: "GAR"
+                  tickets: 523
+                  totalFines: 104600.00
+                  collected: 83680.00
+                  collectionRate: 80.0
+                  activeOfficers: 12
+                  activeStations: 3
+                - regionId: "b2c3d4e5-f6a1-7890-bcde-f12345678901"
+                  regionName: "Ashanti"
+                  regionCode: "ASH"
+                  tickets: 387
+                  totalFines: 77400.00
+                  collected: 54180.00
+                  collectionRate: 70.0
+                  activeOfficers: 8
+                  activeStations: 2
+        "400":
+          description: Invalid or missing query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analytics/revenue:
+    get:
+      tags:
+        - Analytics
+      summary: Revenue report
+      description: |
+        Returns detailed revenue analytics including breakdowns by time period,
+        payment method, and station. Designed for financial reporting and
+        PDF export.
+      operationId: getRevenueAnalytics
+      parameters:
+        - $ref: "#/components/parameters/startDate"
+        - $ref: "#/components/parameters/endDate"
+        - name: groupBy
+          in: query
+          description: Time granularity for the byPeriod breakdown
+          schema:
+            type: string
+            enum:
+              - day
+              - week
+              - month
+            default: day
+          example: "week"
+        - $ref: "#/components/parameters/regionId"
+        - $ref: "#/components/parameters/stationId"
+      responses:
+        "200":
+          description: Revenue report with multiple breakdowns
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueReport"
+              example:
+                totalRevenue: 187562.50
+                averagePerTicket: 150.65
+                dailyAverage: 6252.08
+                byPeriod:
+                  - period: "2026-W03"
+                    amount: 45230.00
+                  - period: "2026-W04"
+                    amount: 52100.00
+                byMethod:
+                  - method: "mobile_money"
+                    count: 834
+                    amount: 125100.00
+                    percentage: 66.7
+                  - method: "cash"
+                    count: 411
+                    amount: 62462.50
+                    percentage: 33.3
+                byStation:
+                  - stationId: "e5f6a1b2-c3d4-7890-efab-567890123456"
+                    stationName: "Accra Central"
+                    amount: 87500.00
+                    ticketCount: 580
+                  - stationId: "f6a1b2c3-d4e5-7890-fabc-678901234567"
+                    stationName: "Kumasi Main"
+                    amount: 53200.00
+                    ticketCount: 340
+        "400":
+          description: Invalid or missing query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /analytics/officer-performance:
+    get:
+      tags:
+        - Analytics
+      summary: Officer performance rankings
+      description: |
+        Returns officer performance metrics ranked by ticket count.
+        Useful for performance dashboards and management reporting.
+      operationId: getOfficerPerformance
+      parameters:
+        - $ref: "#/components/parameters/startDate"
+        - $ref: "#/components/parameters/endDate"
+        - $ref: "#/components/parameters/stationId"
+        - $ref: "#/components/parameters/regionId"
+        - name: limit
+          in: query
+          description: Maximum number of officers to return
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          example: 10
+      responses:
+        "200":
+          description: Array of officer performance records ranked by ticket count
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfficerPerformance"
+              example:
+                - officerId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  officerName: "Sgt. Kwame Mensah"
+                  badgeNumber: "GPS-1042"
+                  stationName: "Accra Central"
+                  ticketCount: 87
+                  totalFines: 17400.00
+                  collectionRate: 82.5
+                  rank: 1
+                - officerId: "b2c3d4e5-f6a1-7890-bcde-f12345678901"
+                  officerName: "Cpl. Ama Asante"
+                  badgeNumber: "GPS-2187"
+                  stationName: "Kumasi Main"
+                  ticketCount: 74
+                  totalFines: 14800.00
+                  collectionRate: 78.3
+                  rank: 2
+        "400":
+          description: Invalid or missing query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions (admin+ required)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    startDate:
+      name: startDate
+      in: query
+      required: true
+      description: Start of the reporting period (inclusive)
+      schema:
+        type: string
+        format: date
+      example: "2026-01-01"
+
+    endDate:
+      name: endDate
+      in: query
+      required: true
+      description: End of the reporting period (inclusive)
+      schema:
+        type: string
+        format: date
+      example: "2026-01-31"
+
+    regionId:
+      name: regionId
+      in: query
+      required: false
+      description: Filter by region
+      schema:
+        type: string
+        format: uuid
+      example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    stationId:
+      name: stationId
+      in: query
+      required: false
+      description: Filter by station
+      schema:
+        type: string
+        format: uuid
+      example: "e5f6a1b2-c3d4-7890-efab-567890123456"
+
+    officerId:
+      name: officerId
+      in: query
+      required: false
+      description: Filter by officer
+      schema:
+        type: string
+        format: uuid
+      example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+  schemas:
+    AnalyticsSummary:
+      type: object
+      required:
+        - totalTickets
+        - totalFines
+        - totalCollected
+        - collectionRate
+        - averagePerOfficer
+        - activeOfficers
+        - activeStations
+      properties:
+        totalTickets:
+          type: integer
+          description: Total number of tickets issued in the period
+          example: 1245
+        totalFines:
+          type: number
+          format: double
+          description: Sum of all fine amounts (GHS)
+          example: 248750.00
+        totalCollected:
+          type: number
+          format: double
+          description: Sum of all payments collected (GHS)
+          example: 187562.50
+        collectionRate:
+          type: number
+          format: double
+          description: Percentage of fines collected (0-100)
+          example: 75.4
+        averagePerOfficer:
+          type: number
+          format: double
+          description: Average number of tickets per active officer
+          example: 62.25
+        activeOfficers:
+          type: integer
+          description: Number of officers who issued at least one ticket
+          example: 20
+        activeStations:
+          type: integer
+          description: Number of stations with at least one ticket
+          example: 5
+
+    TrendPoint:
+      type: object
+      required:
+        - period
+        - tickets
+        - fines
+        - collected
+      properties:
+        period:
+          type: string
+          description: "Time period label (e.g. '2026-01-15', '2026-W03', '2026-01')"
+          example: "2026-01-15"
+        tickets:
+          type: integer
+          description: Number of tickets issued in the period
+          example: 42
+        fines:
+          type: number
+          format: double
+          description: Total fine amount for the period (GHS)
+          example: 8400.00
+        collected:
+          type: number
+          format: double
+          description: Total collected for the period (GHS)
+          example: 6300.00
+
+    TopOffence:
+      type: object
+      required:
+        - offenceId
+        - code
+        - name
+        - category
+        - count
+        - totalAmount
+        - percentageOfTotal
+      properties:
+        offenceId:
+          type: string
+          format: uuid
+          description: Unique identifier of the offence
+          example: "c3d4e5f6-a1b2-7890-cdef-1234567890ab"
+        code:
+          type: string
+          description: Short offence code
+          example: "SPD-001"
+        name:
+          type: string
+          description: Human-readable offence name
+          example: "Exceeding Speed Limit"
+        category:
+          type: string
+          description: Offence category
+          example: "Moving Violations"
+        count:
+          type: integer
+          description: Number of times this offence was issued
+          example: 312
+        totalAmount:
+          type: number
+          format: double
+          description: Sum of fines for this offence (GHS)
+          example: 62400.00
+        percentageOfTotal:
+          type: number
+          format: double
+          description: This offence's share of all tickets (0-100)
+          example: 25.1
+
+    RegionAnalytics:
+      type: object
+      required:
+        - regionId
+        - regionName
+        - regionCode
+        - tickets
+        - totalFines
+        - collected
+        - collectionRate
+        - activeOfficers
+        - activeStations
+      properties:
+        regionId:
+          type: string
+          format: uuid
+          description: Unique identifier of the region
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        regionName:
+          type: string
+          description: Full region name
+          example: "Greater Accra"
+        regionCode:
+          type: string
+          description: Short region code
+          example: "GAR"
+        tickets:
+          type: integer
+          description: Total tickets in this region
+          example: 523
+        totalFines:
+          type: number
+          format: double
+          description: Sum of all fines in this region (GHS)
+          example: 104600.00
+        collected:
+          type: number
+          format: double
+          description: Sum of all payments collected in this region (GHS)
+          example: 83680.00
+        collectionRate:
+          type: number
+          format: double
+          description: Percentage of fines collected (0-100)
+          example: 80.0
+        activeOfficers:
+          type: integer
+          description: Number of officers who issued at least one ticket
+          example: 12
+        activeStations:
+          type: integer
+          description: Number of stations with at least one ticket
+          example: 3
+
+    RevenueReport:
+      type: object
+      required:
+        - totalRevenue
+        - averagePerTicket
+        - dailyAverage
+        - byPeriod
+        - byMethod
+        - byStation
+      properties:
+        totalRevenue:
+          type: number
+          format: double
+          description: Total revenue collected (GHS)
+          example: 187562.50
+        averagePerTicket:
+          type: number
+          format: double
+          description: Average revenue per ticket (GHS)
+          example: 150.65
+        dailyAverage:
+          type: number
+          format: double
+          description: Average daily revenue (GHS)
+          example: 6252.08
+        byPeriod:
+          type: array
+          description: Revenue broken down by time period
+          items:
+            $ref: "#/components/schemas/RevenueByPeriod"
+        byMethod:
+          type: array
+          description: Revenue broken down by payment method
+          items:
+            $ref: "#/components/schemas/RevenueByMethod"
+        byStation:
+          type: array
+          description: Revenue broken down by station
+          items:
+            $ref: "#/components/schemas/RevenueByStation"
+
+    RevenueByPeriod:
+      type: object
+      required:
+        - period
+        - amount
+      properties:
+        period:
+          type: string
+          description: "Time period label (e.g. '2026-01-15', '2026-W03', '2026-01')"
+          example: "2026-W03"
+        amount:
+          type: number
+          format: double
+          description: Revenue for this period (GHS)
+          example: 45230.00
+
+    RevenueByMethod:
+      type: object
+      required:
+        - method
+        - count
+        - amount
+        - percentage
+      properties:
+        method:
+          type: string
+          description: Payment method identifier
+          example: "mobile_money"
+        count:
+          type: integer
+          description: Number of payments via this method
+          example: 834
+        amount:
+          type: number
+          format: double
+          description: Total revenue via this method (GHS)
+          example: 125100.00
+        percentage:
+          type: number
+          format: double
+          description: Share of total revenue (0-100)
+          example: 66.7
+
+    RevenueByStation:
+      type: object
+      required:
+        - stationId
+        - stationName
+        - amount
+        - ticketCount
+      properties:
+        stationId:
+          type: string
+          format: uuid
+          description: Unique identifier of the station
+          example: "e5f6a1b2-c3d4-7890-efab-567890123456"
+        stationName:
+          type: string
+          description: Station display name
+          example: "Accra Central"
+        amount:
+          type: number
+          format: double
+          description: Total revenue at this station (GHS)
+          example: 87500.00
+        ticketCount:
+          type: integer
+          description: Number of tickets at this station
+          example: 580
+
+    OfficerPerformance:
+      type: object
+      required:
+        - officerId
+        - officerName
+        - badgeNumber
+        - stationName
+        - ticketCount
+        - totalFines
+        - collectionRate
+        - rank
+      properties:
+        officerId:
+          type: string
+          format: uuid
+          description: Unique identifier of the officer
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        officerName:
+          type: string
+          description: Full name of the officer
+          example: "Sgt. Kwame Mensah"
+        badgeNumber:
+          type: string
+          description: Officer badge/service number
+          example: "GPS-1042"
+        stationName:
+          type: string
+          description: Station the officer is assigned to
+          example: "Accra Central"
+        ticketCount:
+          type: integer
+          description: Number of tickets issued by this officer
+          example: 87
+        totalFines:
+          type: number
+          format: double
+          description: Sum of fines from this officer's tickets (GHS)
+          example: 17400.00
+        collectionRate:
+          type: number
+          format: double
+          description: Percentage of this officer's fines collected (0-100)
+          example: 82.5
+        rank:
+          type: integer
+          description: Position in the ranking (1 = top)
+          example: 1
+
+    ErrorResponse:
+      type: object
+      required:
+        - statusCode
+        - message
+        - error
+      properties:
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 400
+        message:
+          type: string
+          description: Human-readable error message
+          example: "startDate is required"
+        error:
+          type: string
+          description: Error type identifier
+          example: "Bad Request"

@@ -1,0 +1,696 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Audit Logs API"
+  description: |
+    Read-only access to system audit trail. Audit entries are created automatically
+    by the server for all state-changing operations. Immutable -- no update or delete
+    endpoints are provided.
+
+    Key design decisions:
+    - Audit logs are server-generated. There are no POST, PUT, PATCH, or DELETE
+      endpoints. This ensures tamper-proof compliance records.
+    - All state-changing operations across the system (ticket creation, payment
+      processing, officer management, etc.) automatically produce audit entries.
+    - Logs capture before/after values (oldValue, newValue) for change tracking.
+    - Access is restricted to admin and super_admin roles.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /audit/logs:
+    get:
+      tags:
+        - Audit Logs
+      summary: List audit logs with filters
+      description: |
+        Returns a paginated list of audit log entries with comprehensive filtering.
+        Accessible to admin and super_admin roles only.
+      operationId: listAuditLogs
+      parameters:
+        - name: search
+          in: query
+          description: Free-text search across description, entityName, and userName
+          schema:
+            type: string
+          example: "ticket created"
+        - name: action
+          in: query
+          description: >
+            Comma-separated list of actions to filter by
+          schema:
+            type: string
+          example: "create,update,delete"
+        - name: entityType
+          in: query
+          description: >
+            Comma-separated list of entity types to filter by
+          schema:
+            type: string
+          example: "ticket,payment"
+        - name: userId
+          in: query
+          description: Filter by the user who performed the action
+          schema:
+            type: string
+            format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        - name: dateFrom
+          in: query
+          description: Start of date range (inclusive)
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00Z"
+        - name: dateTo
+          in: query
+          description: End of date range (inclusive)
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-31T23:59:59Z"
+        - name: severity
+          in: query
+          description: Filter by severity level
+          schema:
+            type: string
+            enum:
+              - info
+              - warning
+              - critical
+          example: "critical"
+        - name: stationId
+          in: query
+          description: Filter by station
+          schema:
+            type: string
+            format: uuid
+        - name: regionId
+          in: query
+          description: Filter by region
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            default: createdAt
+          example: "createdAt"
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of audit log entries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AuditLog"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - requires admin or super_admin role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: "FORBIDDEN"
+                  message: "You do not have permission to access audit logs"
+
+  /audit/logs/{id}:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get single audit log entry
+      description: |
+        Returns the full details of a single audit log entry by its ID.
+        Accessible to admin and super_admin roles only.
+      operationId: getAuditLogById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Audit log entry UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Full audit log entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLog"
+              example:
+                id: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+                timestamp: "2026-01-15T10:30:00Z"
+                userId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                userName: "Kwame Mensah"
+                userRole: "officer"
+                userBadgeNumber: "GPS-12345"
+                action: "create"
+                entityType: "ticket"
+                entityId: "d4e5f6a7-b8c9-0123-def0-123456789012"
+                entityName: "TKT-2026-GR-001234"
+                description: "Created traffic offence ticket TKT-2026-GR-001234"
+                oldValue: null
+                newValue:
+                  vehicleRegistration: "GR-1234-20"
+                  totalFine: 200.00
+                  status: "unpaid"
+                metadata:
+                  source: "handheld"
+                  deviceId: "device-abc-123"
+                ipAddress: "192.168.1.50"
+                userAgent: "GhanaPoliceApp/1.2.0 Android/14.0"
+                sessionId: "sess-xyz-789"
+                stationId: "11223344-5566-7788-99aa-bbccddeeff00"
+                stationName: "Accra Central Police Station"
+                regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                regionName: "Greater Accra"
+                severity: "info"
+                success: true
+                errorMessage: null
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - requires admin or super_admin role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Audit log entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /audit/stats:
+    get:
+      tags:
+        - Audit Statistics
+      summary: Get audit statistics
+      description: |
+        Returns aggregated audit statistics for the given filters.
+        Useful for admin dashboards and compliance reporting.
+        Accessible to admin and super_admin roles only.
+      operationId: getAuditStats
+      parameters:
+        - name: dateFrom
+          in: query
+          description: Start of date range (inclusive)
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00Z"
+        - name: dateTo
+          in: query
+          description: End of date range (inclusive)
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-31T23:59:59Z"
+        - name: stationId
+          in: query
+          description: Filter by station
+          schema:
+            type: string
+            format: uuid
+        - name: regionId
+          in: query
+          description: Filter by region
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Audit statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditStats"
+              example:
+                totalEntries: 15432
+                byAction:
+                  create: 5200
+                  update: 4800
+                  delete: 120
+                  view: 3000
+                  login: 1500
+                  logout: 812
+                byEntityType:
+                  ticket: 8500
+                  payment: 3200
+                  officer: 1200
+                  user: 900
+                  settings: 132
+                  system: 500
+                bySeverity:
+                  info: 14800
+                  warning: 520
+                  critical: 112
+                byUser:
+                  - userId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    userName: "Kwame Mensah"
+                    count: 1250
+                  - userId: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    userName: "Ama Serwaa"
+                    count: 980
+                recentCritical:
+                  - id: "crit-001"
+                    timestamp: "2026-01-15T10:30:00Z"
+                    action: "delete"
+                    entityType: "ticket"
+                    description: "Ticket voided by admin override"
+                    userName: "Admin User"
+                    severity: "critical"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - requires admin or super_admin role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from the login endpoint
+
+  schemas:
+    AuditAction:
+      type: string
+      description: Type of action that was performed
+      enum:
+        - create
+        - update
+        - delete
+        - view
+        - login
+        - logout
+        - approve
+        - reject
+        - print
+        - sync
+        - export
+        - import
+        - assign
+        - transfer
+        - activate
+        - deactivate
+        - reset_password
+        - change_status
+      example: "create"
+
+    AuditEntityType:
+      type: string
+      description: Type of entity the action was performed on
+      enum:
+        - ticket
+        - payment
+        - objection
+        - officer
+        - station
+        - region
+        - division
+        - district
+        - offence
+        - user
+        - settings
+        - system
+      example: "ticket"
+
+    AuditSeverity:
+      type: string
+      description: Severity level of the audit entry
+      enum:
+        - info
+        - warning
+        - critical
+      example: "info"
+
+    AuditLog:
+      type: object
+      description: A single audit log entry
+      required:
+        - id
+        - timestamp
+        - userId
+        - userName
+        - userRole
+        - action
+        - entityType
+        - entityId
+        - description
+        - severity
+        - success
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique audit log entry identifier
+          example: "c3d4e5f6-a7b8-9012-cdef-123456789012"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the action occurred
+          example: "2026-01-15T10:30:00Z"
+        userId:
+          type: string
+          format: uuid
+          description: ID of the user who performed the action
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        userName:
+          type: string
+          description: Display name of the user who performed the action
+          example: "Kwame Mensah"
+        userRole:
+          type: string
+          description: Role of the user at the time of the action
+          example: "officer"
+        userBadgeNumber:
+          type: string
+          description: Badge number of the user (if applicable)
+          example: "GPS-12345"
+        action:
+          $ref: "#/components/schemas/AuditAction"
+        entityType:
+          $ref: "#/components/schemas/AuditEntityType"
+        entityId:
+          type: string
+          description: ID of the entity that was acted upon
+          example: "d4e5f6a7-b8c9-0123-def0-123456789012"
+        entityName:
+          type: string
+          description: Human-readable name or identifier of the entity
+          example: "TKT-2026-GR-001234"
+        description:
+          type: string
+          description: Human-readable description of what happened
+          example: "Created traffic offence ticket TKT-2026-GR-001234"
+        oldValue:
+          type: object
+          description: Previous state of the entity before the change (null for creates)
+          additionalProperties: true
+          nullable: true
+        newValue:
+          type: object
+          description: New state of the entity after the change (null for deletes)
+          additionalProperties: true
+          nullable: true
+        metadata:
+          type: object
+          description: Additional contextual metadata about the action
+          additionalProperties: true
+          nullable: true
+          example:
+            source: "handheld"
+            deviceId: "device-abc-123"
+        ipAddress:
+          type: string
+          description: IP address from which the action was performed
+          example: "192.168.1.50"
+        userAgent:
+          type: string
+          description: User agent string of the client
+          example: "GhanaPoliceApp/1.2.0 Android/14.0"
+        sessionId:
+          type: string
+          description: Session ID associated with the action
+          example: "sess-xyz-789"
+        stationId:
+          type: string
+          format: uuid
+          description: Station associated with the action
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        stationName:
+          type: string
+          description: Name of the station associated with the action
+          example: "Accra Central Police Station"
+        regionId:
+          type: string
+          format: uuid
+          description: Region associated with the action
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+        regionName:
+          type: string
+          description: Name of the region associated with the action
+          example: "Greater Accra"
+        severity:
+          $ref: "#/components/schemas/AuditSeverity"
+        success:
+          type: boolean
+          description: Whether the action completed successfully
+          example: true
+        errorMessage:
+          type: string
+          description: Error message if the action failed
+          nullable: true
+          example: null
+
+    AuditStats:
+      type: object
+      description: Aggregated audit statistics
+      required:
+        - totalEntries
+        - byAction
+        - byEntityType
+        - bySeverity
+        - byUser
+        - recentCritical
+      properties:
+        totalEntries:
+          type: integer
+          description: Total number of audit entries matching the filters
+          example: 15432
+        byAction:
+          type: object
+          description: Count of entries grouped by action type
+          additionalProperties:
+            type: integer
+          example:
+            create: 5200
+            update: 4800
+            delete: 120
+            login: 1500
+        byEntityType:
+          type: object
+          description: Count of entries grouped by entity type
+          additionalProperties:
+            type: integer
+          example:
+            ticket: 8500
+            payment: 3200
+            officer: 1200
+        bySeverity:
+          type: object
+          description: Count of entries grouped by severity level
+          properties:
+            info:
+              type: integer
+              example: 14800
+            warning:
+              type: integer
+              example: 520
+            critical:
+              type: integer
+              example: 112
+          required:
+            - info
+            - warning
+            - critical
+        byUser:
+          type: array
+          description: Top 10 users by activity count
+          maxItems: 10
+          items:
+            type: object
+            required:
+              - userId
+              - userName
+              - count
+            properties:
+              userId:
+                type: string
+                format: uuid
+                description: User ID
+                example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+              userName:
+                type: string
+                description: User display name
+                example: "Kwame Mensah"
+              count:
+                type: integer
+                description: Number of audit entries by this user
+                example: 1250
+        recentCritical:
+          type: array
+          description: Last 5 critical severity entries
+          maxItems: 5
+          items:
+            type: object
+            required:
+              - id
+              - timestamp
+              - action
+              - entityType
+              - description
+              - userName
+              - severity
+            properties:
+              id:
+                type: string
+                format: uuid
+                example: "crit-001"
+              timestamp:
+                type: string
+                format: date-time
+                example: "2026-01-15T10:30:00Z"
+              action:
+                $ref: "#/components/schemas/AuditAction"
+              entityType:
+                $ref: "#/components/schemas/AuditEntityType"
+              description:
+                type: string
+                example: "Ticket voided by admin override"
+              userName:
+                type: string
+                example: "Admin User"
+              severity:
+                $ref: "#/components/schemas/AuditSeverity"
+
+    PaginatedResponse:
+      type: object
+      description: Standard paginated response wrapper
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required:
+        - data
+        - pagination
+
+    Pagination:
+      type: object
+      description: Pagination metadata
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-based)
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        totalItems:
+          type: integer
+          description: Total number of matching items
+          example: 15432
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 772
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrevious:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasNext
+        - hasPrevious
+
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Validation failed for the request"
+            details:
+              type: array
+              description: Detailed error information
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: "dateFrom"
+                  message:
+                    type: string
+                    example: "Must be a valid ISO 8601 date-time"
+          required:
+            - code
+            - message
+      required:
+        - error

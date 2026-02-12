@@ -1,0 +1,1400 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Tickets API"
+  description: |
+    Core ticket management API for the Ghana Police Ticketing System.
+    Provides CRUD operations, voiding, statistics, and search capabilities.
+    All endpoints are jurisdiction-scoped based on the authenticated officer's
+    assigned station, district, division, or region.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /tickets:
+    post:
+      tags:
+        - Tickets
+      summary: Create a new ticket
+      description: |
+        Creates a new traffic offence ticket. The ticket is associated with the
+        authenticated officer and their current station. Supports offline dedup
+        via the clientCreatedId field.
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRequest"
+      responses:
+        "201":
+          description: Ticket created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      ticketNumber:
+                        type: string
+                        example: "TKT-2024-GR-001234"
+                      status:
+                        $ref: "#/components/schemas/TicketStatus"
+                      totalFine:
+                        type: number
+                        format: double
+                        example: 500.00
+                      dueDate:
+                        type: string
+                        format: date-time
+                        example: "2024-08-15T23:59:59Z"
+                      paymentReference:
+                        type: string
+                        example: "PAY-2024-GR-001234"
+                    required:
+                      - id
+                      - ticketNumber
+                      - status
+                      - totalFine
+                      - dueDate
+                      - paymentReference
+                  printData:
+                    type: object
+                    properties:
+                      qrCode:
+                        type: string
+                        description: Base64-encoded QR code image for payment
+                        example: "data:image/png;base64,iVBORw0KGgo..."
+                      paymentInstructions:
+                        type: string
+                        description: Human-readable payment instructions
+                        example: "Pay GHS 500.00 via MoMo to 024-XXX-XXXX or visit any police station. Reference: PAY-2024-GR-001234"
+                    required:
+                      - qrCode
+                      - paymentInstructions
+                required:
+                  - ticket
+                  - printData
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Duplicate ticket (clientCreatedId already exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Tickets
+      summary: List tickets with pagination and filters
+      description: |
+        Returns a paginated list of tickets. Results are scoped to the
+        authenticated officer's jurisdiction. Supports filtering by status,
+        date range, officer, station, region, amount range, and sync status.
+      operationId: listTickets
+      parameters:
+        - name: search
+          in: query
+          description: Free-text search across ticket number, vehicle registration, driver name
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Comma-separated list of statuses to filter by
+          schema:
+            type: string
+            example: "unpaid,overdue"
+          style: form
+          explode: false
+        - name: dateFrom
+          in: query
+          description: Filter tickets issued on or after this date
+          schema:
+            type: string
+            format: date
+            example: "2024-01-01"
+        - name: dateTo
+          in: query
+          description: Filter tickets issued on or before this date
+          schema:
+            type: string
+            format: date
+            example: "2024-12-31"
+        - name: officerId
+          in: query
+          description: Filter by issuing officer ID
+          schema:
+            type: string
+            format: uuid
+        - name: stationId
+          in: query
+          description: Filter by station ID
+          schema:
+            type: string
+            format: uuid
+        - name: regionId
+          in: query
+          description: Filter by region ID
+          schema:
+            type: string
+            format: uuid
+        - name: minAmount
+          in: query
+          description: Minimum total fine amount
+          schema:
+            type: number
+            format: double
+            example: 100.00
+        - name: maxAmount
+          in: query
+          description: Maximum total fine amount
+          schema:
+            type: number
+            format: double
+            example: 5000.00
+        - name: category
+          in: query
+          description: Filter by offence category
+          schema:
+            type: string
+            enum:
+              - moving_violation
+              - parking
+              - documentation
+              - vehicle_condition
+              - other
+        - name: syncStatus
+          in: query
+          description: Filter by sync status
+          schema:
+            $ref: "#/components/schemas/SyncStatus"
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum:
+              - issuedAt
+              - totalFine
+              - ticketNumber
+              - status
+              - dueDate
+            default: issuedAt
+        - name: sortOrder
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of tickets
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/TicketListItem"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets/{id}:
+    get:
+      tags:
+        - Tickets
+      summary: Get full ticket details by ID
+      description: Returns the complete ticket object with all nested data.
+      operationId: getTicketById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Ticket UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Full ticket details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    $ref: "#/components/schemas/Ticket"
+                required:
+                  - ticket
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - ticket outside jurisdiction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      tags:
+        - Tickets
+      summary: Update a ticket
+      description: |
+        Update ticket details. Requires admin role or above.
+        Cannot edit tickets with status 'paid' or 'cancelled'.
+      operationId: updateTicket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Ticket UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  $ref: "#/components/schemas/TicketStatus"
+                notes:
+                  type: string
+                  description: Additional notes to append
+                  example: "Driver provided valid license on follow-up"
+                offences:
+                  type: array
+                  description: Updated list of offences (replaces existing)
+                  items:
+                    $ref: "#/components/schemas/OffenceSelection"
+      responses:
+        "200":
+          description: Ticket updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    $ref: "#/components/schemas/Ticket"
+                required:
+                  - ticket
+        "400":
+          description: Validation error or ticket cannot be edited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets/number/{ticketNumber}:
+    get:
+      tags:
+        - Tickets
+      summary: Get full ticket details by ticket number
+      description: Returns the complete ticket object by its human-readable ticket number.
+      operationId: getTicketByNumber
+      parameters:
+        - name: ticketNumber
+          in: path
+          required: true
+          description: Human-readable ticket number
+          schema:
+            type: string
+            example: "TKT-2024-GR-001234"
+      responses:
+        "200":
+          description: Full ticket details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    $ref: "#/components/schemas/Ticket"
+                required:
+                  - ticket
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - ticket outside jurisdiction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets/{id}/void:
+    post:
+      tags:
+        - Tickets
+      summary: Void a ticket
+      description: |
+        Voids (cancels) a ticket. Requires supervisor role or above.
+        A reason must be provided with a minimum of 10 characters.
+        Sets ticket status to 'cancelled' and records void metadata.
+      operationId: voidTicket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Ticket UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  minLength: 10
+                  description: Reason for voiding the ticket
+                  example: "Ticket issued in error - wrong vehicle identified by officer"
+              required:
+                - reason
+      responses:
+        "200":
+          description: Ticket voided successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    $ref: "#/components/schemas/Ticket"
+                required:
+                  - ticket
+        "400":
+          description: Validation error or ticket cannot be voided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient role (requires supervisor+)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets/stats:
+    get:
+      tags:
+        - Statistics
+      summary: Get aggregate ticket statistics
+      description: |
+        Returns aggregate statistics for tickets within the authenticated
+        officer's jurisdiction. Can be further filtered by date range,
+        station, or officer.
+      operationId: getTicketStats
+      parameters:
+        - name: dateFrom
+          in: query
+          description: Start date for statistics period
+          schema:
+            type: string
+            format: date
+            example: "2024-01-01"
+        - name: dateTo
+          in: query
+          description: End date for statistics period
+          schema:
+            type: string
+            format: date
+            example: "2024-12-31"
+        - name: stationId
+          in: query
+          description: Filter by station ID
+          schema:
+            type: string
+            format: uuid
+        - name: officerId
+          in: query
+          description: Filter by officer ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Aggregate ticket statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: "#/components/schemas/TicketStats"
+                required:
+                  - stats
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets/search:
+    get:
+      tags:
+        - Search
+      summary: Quick search for tickets
+      description: |
+        Performs a quick search across ticket number, vehicle registration,
+        and driver name. Returns a maximum of 50 results. For more advanced
+        filtering, use the GET /tickets endpoint.
+      operationId: quickSearchTickets
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (minimum 2 characters)
+          schema:
+            type: string
+            minLength: 2
+            example: "GR-1234"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    maxItems: 50
+                    items:
+                      $ref: "#/components/schemas/TicketListItem"
+                required:
+                  - results
+        "400":
+          description: Query too short
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tickets/{id}/photos:
+    post:
+      tags:
+        - Photos
+      summary: Upload a photo for a ticket
+      description: |
+        Uploads a photo and associates it with the specified ticket.
+        Maximum file size is 5MB. Accepted formats are JPEG and PNG.
+      operationId: uploadTicketPhoto
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Ticket UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: Photo file (JPEG or PNG, max 5MB)
+                type:
+                  $ref: "#/components/schemas/PhotoType"
+              required:
+                - photo
+                - type
+      responses:
+        "201":
+          description: Photo uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photoId:
+                    type: string
+                    format: uuid
+                    example: "f1a2b3c4-d5e6-7890-abcd-ef1234567890"
+                  url:
+                    type: string
+                    format: uri
+                    example: "https://storage.example.com/photos/f1a2b3c4.jpg"
+                  thumbnailUrl:
+                    type: string
+                    format: uri
+                    example: "https://storage.example.com/photos/f1a2b3c4_thumb.jpg"
+                required:
+                  - photoId
+                  - url
+                  - thumbnailUrl
+        "400":
+          description: Invalid file type or size exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the Auth API
+
+  schemas:
+    CreateTicketRequest:
+      type: object
+      description: Request body for creating a new traffic offence ticket
+      properties:
+        vehicle:
+          $ref: "#/components/schemas/VehicleInfo"
+        driver:
+          $ref: "#/components/schemas/DriverInfo"
+        offences:
+          type: array
+          minItems: 1
+          description: List of offences to charge
+          items:
+            $ref: "#/components/schemas/OffenceSelection"
+        location:
+          $ref: "#/components/schemas/GeoLocation"
+        notes:
+          type: string
+          description: Additional notes about the incident
+          example: "Driver was cooperative. Vehicle had expired insurance sticker."
+        photos:
+          type: array
+          description: Array of previously uploaded photo UUIDs to attach
+          items:
+            type: string
+            format: uuid
+        clientCreatedId:
+          type: string
+          description: Client-generated unique ID for offline deduplication
+          example: "offline-1720000000000-abc123"
+      required:
+        - vehicle
+        - offences
+        - location
+
+    VehicleInfo:
+      type: object
+      description: Vehicle information captured during the stop
+      properties:
+        registrationNumber:
+          type: string
+          minLength: 6
+          description: Vehicle registration/plate number
+          example: "GR-1234-24"
+        make:
+          type: string
+          description: Vehicle manufacturer
+          example: "Toyota"
+        model:
+          type: string
+          description: Vehicle model
+          example: "Corolla"
+        color:
+          type: string
+          description: Vehicle color
+          example: "Silver"
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        ownerName:
+          type: string
+          description: Registered owner name
+          example: "Kwame Asante"
+        ownerPhone:
+          type: string
+          description: Owner phone number
+          example: "+233241234567"
+        ownerAddress:
+          type: string
+          description: Owner address
+          example: "12 Independence Ave, Accra"
+      required:
+        - registrationNumber
+        - type
+
+    DriverInfo:
+      type: object
+      description: Driver information captured during the stop
+      properties:
+        firstName:
+          type: string
+          description: Driver's first name
+          example: "Kofi"
+        lastName:
+          type: string
+          description: Driver's last name
+          example: "Mensah"
+        licenseNumber:
+          type: string
+          description: Driver's license number
+          example: "DL-0012345678"
+        phone:
+          type: string
+          description: Driver's phone number
+          example: "+233201234567"
+        address:
+          type: string
+          description: Driver's address
+          example: "45 Ring Road, Kumasi"
+        idType:
+          type: string
+          enum:
+            - license
+            - ghana_card
+            - passport
+            - voter_id
+          description: Type of identification presented
+          example: "ghana_card"
+        idNumber:
+          type: string
+          description: ID document number
+          example: "GHA-123456789-0"
+      required:
+        - firstName
+        - lastName
+
+    OffenceSelection:
+      type: object
+      description: An offence selected for the ticket
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Offence definition ID from the offences catalog
+          example: "b2c3d4e5-f6a7-8901-bcde-f23456789012"
+        notes:
+          type: string
+          description: Officer notes specific to this offence
+          example: "Exceeded speed limit by 30km/h in school zone"
+        customFine:
+          type: number
+          format: double
+          description: Custom fine amount if different from standard
+          example: 750.00
+      required:
+        - id
+
+    GeoLocation:
+      type: object
+      description: GPS location where the offence occurred
+      properties:
+        latitude:
+          type: number
+          format: double
+          description: Latitude coordinate
+          example: 5.6037
+        longitude:
+          type: number
+          format: double
+          description: Longitude coordinate
+          example: -0.1870
+        accuracy:
+          type: number
+          format: double
+          description: GPS accuracy in meters
+          example: 15.5
+        address:
+          type: string
+          description: Human-readable address
+          example: "N1 Highway, near Tema Roundabout"
+        landmark:
+          type: string
+          description: Nearby landmark for reference
+          example: "Opposite Accra Mall"
+      required:
+        - latitude
+        - longitude
+
+    Ticket:
+      type: object
+      description: |
+        Full ticket object with all nested data.
+
+        Status Transitions:
+        - unpaid -> paid, overdue, objection, cancelled
+        - overdue -> paid, objection, cancelled
+        - objection -> unpaid (if rejected), cancelled (if approved)
+        - paid -> (terminal state, no transitions)
+        - cancelled -> (terminal state, no transitions)
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        ticketNumber:
+          type: string
+          example: "TKT-2024-GR-001234"
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-07-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-07-15T10:30:00Z"
+        issuedAt:
+          type: string
+          format: date-time
+          example: "2024-07-15T10:25:00Z"
+        dueDate:
+          type: string
+          format: date-time
+          example: "2024-08-15T23:59:59Z"
+        totalFine:
+          type: number
+          format: double
+          example: 500.00
+        vehicle:
+          $ref: "#/components/schemas/VehicleInfo"
+        driver:
+          $ref: "#/components/schemas/DriverInfo"
+        offences:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: Ticket-offence record ID
+              offenceId:
+                type: string
+                format: uuid
+                description: Offence definition ID
+              category:
+                type: string
+                description: Offence category
+                example: "moving_violation"
+              code:
+                type: string
+                description: Offence code
+                example: "MV-001"
+              name:
+                type: string
+                description: Offence name
+                example: "Exceeding Speed Limit"
+              fine:
+                type: number
+                format: double
+                description: Standard fine amount
+                example: 500.00
+              notes:
+                type: string
+                description: Officer notes for this offence
+              customFine:
+                type: number
+                format: double
+                description: Custom fine if overridden
+            required:
+              - id
+              - offenceId
+              - category
+              - code
+              - name
+              - fine
+        location:
+          $ref: "#/components/schemas/GeoLocation"
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketPhoto"
+        notesList:
+          type: array
+          description: Structured list of notes added to the ticket
+          items:
+            $ref: "#/components/schemas/TicketNote"
+        officerId:
+          type: string
+          format: uuid
+          description: ID of the issuing officer
+        officerName:
+          type: string
+          description: Full name of the issuing officer
+          example: "Sgt. Ama Boateng"
+        officerBadgeNumber:
+          type: string
+          description: Badge number of the issuing officer
+          example: "GPS-12345"
+        stationId:
+          type: string
+          format: uuid
+          description: Station ID where the officer is assigned
+        stationName:
+          type: string
+          description: Station name
+          example: "Cantonments Police Station"
+        districtId:
+          type: string
+          format: uuid
+          description: District ID
+        divisionId:
+          type: string
+          format: uuid
+          description: Division ID
+        regionId:
+          type: string
+          format: uuid
+          description: Region ID
+        paymentDeadline:
+          type: string
+          format: date-time
+          description: Payment deadline
+          example: "2024-08-15T23:59:59Z"
+        paymentReference:
+          type: string
+          description: Unique payment reference code
+          example: "PAY-2024-GR-001234"
+        paidAt:
+          type: string
+          format: date-time
+          description: Timestamp when payment was received
+        paidAmount:
+          type: number
+          format: double
+          description: Amount paid
+          example: 500.00
+        paymentMethod:
+          type: string
+          description: Method of payment
+          example: "mobile_money"
+        objectionFiled:
+          type: boolean
+          description: Whether an objection has been filed
+          example: false
+        objectionDate:
+          type: string
+          format: date-time
+          description: Date objection was filed
+        objectionReason:
+          type: string
+          description: Reason for the objection
+        objectionStatus:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+          description: Status of the objection
+        syncStatus:
+          $ref: "#/components/schemas/SyncStatus"
+        syncedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the ticket was last synced
+        printed:
+          type: boolean
+          description: Whether the ticket has been printed
+          example: true
+        printedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the ticket was printed
+        voidedBy:
+          type: string
+          format: uuid
+          description: ID of the officer who voided the ticket
+        voidedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the ticket was voided
+        voidReason:
+          type: string
+          description: Reason for voiding the ticket
+        notes:
+          type: string
+          description: Legacy plain-text notes field
+      required:
+        - id
+        - ticketNumber
+        - status
+        - createdAt
+        - updatedAt
+        - issuedAt
+        - dueDate
+        - totalFine
+        - vehicle
+        - offences
+        - location
+        - officerId
+        - officerName
+        - officerBadgeNumber
+        - stationId
+        - syncStatus
+
+    TicketListItem:
+      type: object
+      description: Compact ticket representation for list views
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        ticketNumber:
+          type: string
+          example: "TKT-2024-GR-001234"
+        vehicleReg:
+          type: string
+          description: Vehicle registration number
+          example: "GR-1234-24"
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        totalFine:
+          type: number
+          format: double
+          example: 500.00
+        issuedAt:
+          type: string
+          format: date-time
+          example: "2024-07-15T10:25:00Z"
+        dueDate:
+          type: string
+          format: date-time
+          example: "2024-08-15T23:59:59Z"
+        officerName:
+          type: string
+          example: "Sgt. Ama Boateng"
+        officerId:
+          type: string
+          format: uuid
+        stationId:
+          type: string
+          format: uuid
+        stationName:
+          type: string
+          example: "Cantonments Police Station"
+        districtId:
+          type: string
+          format: uuid
+        districtName:
+          type: string
+          example: "Accra Metropolitan"
+        divisionId:
+          type: string
+          format: uuid
+        divisionName:
+          type: string
+          example: "Greater Accra Division"
+        regionId:
+          type: string
+          format: uuid
+        regionName:
+          type: string
+          example: "Greater Accra"
+        offenceCount:
+          type: integer
+          description: Number of offences on the ticket
+          example: 2
+        syncStatus:
+          $ref: "#/components/schemas/SyncStatus"
+      required:
+        - id
+        - ticketNumber
+        - vehicleReg
+        - status
+        - totalFine
+        - issuedAt
+        - dueDate
+        - officerName
+        - officerId
+        - stationId
+        - stationName
+        - offenceCount
+        - syncStatus
+
+    TicketStats:
+      type: object
+      description: Aggregate ticket statistics for a jurisdiction and time period
+      properties:
+        total:
+          type: integer
+          description: Total number of tickets
+          example: 1250
+        paid:
+          type: integer
+          description: Number of paid tickets
+          example: 820
+        unpaid:
+          type: integer
+          description: Number of unpaid tickets
+          example: 230
+        overdue:
+          type: integer
+          description: Number of overdue tickets
+          example: 95
+        objection:
+          type: integer
+          description: Number of tickets with objections
+          example: 45
+        cancelled:
+          type: integer
+          description: Number of cancelled/voided tickets
+          example: 60
+        totalAmount:
+          type: number
+          format: double
+          description: Total fine amount across all tickets
+          example: 625000.00
+        collectedAmount:
+          type: number
+          format: double
+          description: Total amount collected (paid tickets)
+          example: 410000.00
+        pendingAmount:
+          type: number
+          format: double
+          description: Total amount pending (unpaid + overdue)
+          example: 162500.00
+      required:
+        - total
+        - paid
+        - unpaid
+        - overdue
+        - objection
+        - cancelled
+        - totalAmount
+        - collectedAmount
+        - pendingAmount
+
+    TicketStatus:
+      type: string
+      enum:
+        - unpaid
+        - paid
+        - overdue
+        - objection
+        - cancelled
+      description: |
+        Current status of the ticket.
+        Transitions:
+        - unpaid -> paid, overdue, objection, cancelled
+        - overdue -> paid, objection, cancelled
+        - objection -> unpaid (if rejected), cancelled (if approved)
+        - paid -> (terminal)
+        - cancelled -> (terminal)
+      example: "unpaid"
+
+    VehicleType:
+      type: string
+      enum:
+        - car
+        - motorcycle
+        - bus
+        - minibus
+        - truck
+        - trailer
+        - taxi
+        - tricycle
+        - other
+      description: Type/category of the vehicle
+      example: "car"
+
+    PhotoType:
+      type: string
+      enum:
+        - vehicle
+        - plate
+        - evidence
+        - other
+      description: Type/category of the photo
+      example: "vehicle"
+
+    SyncStatus:
+      type: string
+      enum:
+        - pending
+        - synced
+        - failed
+      description: Synchronization status for offline-created tickets
+      example: "synced"
+
+    TicketPhoto:
+      type: object
+      description: A photo attached to a ticket
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "f1a2b3c4-d5e6-7890-abcd-ef1234567890"
+        type:
+          $ref: "#/components/schemas/PhotoType"
+        url:
+          type: string
+          format: uri
+          description: Full-size photo URL
+          example: "https://storage.example.com/photos/f1a2b3c4.jpg"
+        thumbnailUrl:
+          type: string
+          format: uri
+          description: Thumbnail photo URL
+          example: "https://storage.example.com/photos/f1a2b3c4_thumb.jpg"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the photo was taken or uploaded
+          example: "2024-07-15T10:28:00Z"
+      required:
+        - id
+        - type
+        - url
+        - thumbnailUrl
+        - timestamp
+
+    TicketNote:
+      type: object
+      description: A note added to a ticket by an officer
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "d4e5f6a7-b8c9-0123-defg-h45678901234"
+        content:
+          type: string
+          description: Note content
+          example: "Driver presented valid insurance upon follow-up visit."
+        officerId:
+          type: string
+          format: uuid
+          description: ID of the officer who wrote the note
+        officerName:
+          type: string
+          description: Name of the officer who wrote the note
+          example: "Sgt. Ama Boateng"
+        officerEmail:
+          type: string
+          format: email
+          description: Email of the officer who wrote the note
+          example: "ama.boateng@police.gov.gh"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the note was created
+          example: "2024-07-16T09:00:00Z"
+        edited:
+          type: boolean
+          description: Whether the note has been edited
+          example: false
+        editedAt:
+          type: string
+          format: date-time
+          description: When the note was last edited
+      required:
+        - id
+        - content
+        - officerId
+        - officerName
+        - timestamp
+        - edited
+
+    PaginatedResponse:
+      type: object
+      description: Standard paginated response wrapper
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required:
+        - data
+        - pagination
+
+    Pagination:
+      type: object
+      description: Pagination metadata
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-based)
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        totalItems:
+          type: integer
+          description: Total number of matching items
+          example: 1250
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 63
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrevious:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasNext
+        - hasPrevious
+
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Validation failed for the request"
+            details:
+              type: array
+              description: Detailed error information
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: "vehicle.registrationNumber"
+                  message:
+                    type: string
+                    example: "Must be at least 6 characters"
+          required:
+            - code
+            - message
+      required:
+        - error

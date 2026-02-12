@@ -1,0 +1,538 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - System Settings API"
+  description: |
+    System-wide configuration management for the Ghana Police Ticketing System.
+
+    Settings are organized by section: `system`, `ticket`, `notifications`,
+    `security`, `data`, and `device`. Each section has its own schema and
+    can be read or updated independently.
+
+    **Access control:**
+    - `admin` and `super_admin` roles can read settings.
+    - Only `super_admin` can update settings.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Settings
+    description: System-wide configuration management
+
+paths:
+  # -- All Settings ----------------------------------------------------------
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get all system settings
+      description: |
+        Returns all system settings grouped by section. Requires `admin` or
+        `super_admin` role.
+      operationId: getAllSettings
+      responses:
+        "200":
+          description: All settings grouped by section
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      system:
+                        $ref: "#/components/schemas/SystemSettings"
+                      ticket:
+                        $ref: "#/components/schemas/TicketSettings"
+                      notifications:
+                        $ref: "#/components/schemas/NotificationSettings"
+                      security:
+                        $ref: "#/components/schemas/SecuritySettings"
+                      data:
+                        $ref: "#/components/schemas/DataSettings"
+                      device:
+                        $ref: "#/components/schemas/DeviceSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    put:
+      tags: [Settings]
+      summary: Update all settings
+      description: |
+        Replaces all system settings. Requires `super_admin` role.
+
+        All sections must be provided in the request body. Omitting a section
+        will reset it to default values.
+      operationId: updateAllSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - system
+                - ticket
+                - notifications
+                - security
+                - data
+                - device
+              properties:
+                system:
+                  $ref: "#/components/schemas/SystemSettings"
+                ticket:
+                  $ref: "#/components/schemas/TicketSettings"
+                notifications:
+                  $ref: "#/components/schemas/NotificationSettings"
+                security:
+                  $ref: "#/components/schemas/SecuritySettings"
+                data:
+                  $ref: "#/components/schemas/DataSettings"
+                device:
+                  $ref: "#/components/schemas/DeviceSettings"
+      responses:
+        "200":
+          description: All settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Settings updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      system:
+                        $ref: "#/components/schemas/SystemSettings"
+                      ticket:
+                        $ref: "#/components/schemas/TicketSettings"
+                      notifications:
+                        $ref: "#/components/schemas/NotificationSettings"
+                      security:
+                        $ref: "#/components/schemas/SecuritySettings"
+                      data:
+                        $ref: "#/components/schemas/DataSettings"
+                      device:
+                        $ref: "#/components/schemas/DeviceSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # -- Section Settings ------------------------------------------------------
+  /settings/{section}:
+    parameters:
+      - $ref: "#/components/parameters/SectionPath"
+
+    get:
+      tags: [Settings]
+      summary: Get settings for a specific section
+      description: |
+        Returns the settings for a single section. Requires `admin` or
+        `super_admin` role.
+      operationId: getSectionSettings
+      responses:
+        "200":
+          description: Section settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    oneOf:
+                      - $ref: "#/components/schemas/SystemSettings"
+                      - $ref: "#/components/schemas/TicketSettings"
+                      - $ref: "#/components/schemas/NotificationSettings"
+                      - $ref: "#/components/schemas/SecuritySettings"
+                      - $ref: "#/components/schemas/DataSettings"
+                      - $ref: "#/components/schemas/DeviceSettings"
+              examples:
+                system:
+                  summary: System section
+                  value:
+                    success: true
+                    data:
+                      organizationName: "Ghana Police Service"
+                      timezone: "Africa/Accra"
+                      dateFormat: "DD/MM/YYYY"
+                      currency: "GHS"
+                      maintenanceMode: false
+                ticket:
+                  summary: Ticket section
+                  value:
+                    success: true
+                    data:
+                      prefix: "GPS"
+                      paymentGraceDays: 14
+                      objectionDeadlineDays: 7
+                      maxPhotos: 4
+                      maxPhotoSizeMB: 5
+                      autoOverdueEnabled: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    put:
+      tags: [Settings]
+      summary: Update section settings
+      description: |
+        Updates the settings for a single section. Requires `super_admin` role.
+
+        Only the fields relevant to the specified section should be provided
+        in the request body.
+      operationId: updateSectionSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SystemSettings"
+                - $ref: "#/components/schemas/TicketSettings"
+                - $ref: "#/components/schemas/NotificationSettings"
+                - $ref: "#/components/schemas/SecuritySettings"
+                - $ref: "#/components/schemas/DataSettings"
+                - $ref: "#/components/schemas/DeviceSettings"
+      responses:
+        "200":
+          description: Section settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Settings updated successfully"
+                  data:
+                    oneOf:
+                      - $ref: "#/components/schemas/SystemSettings"
+                      - $ref: "#/components/schemas/TicketSettings"
+                      - $ref: "#/components/schemas/NotificationSettings"
+                      - $ref: "#/components/schemas/SecuritySettings"
+                      - $ref: "#/components/schemas/DataSettings"
+                      - $ref: "#/components/schemas/DeviceSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SectionPath:
+      name: section
+      in: path
+      required: true
+      description: Settings section identifier
+      schema:
+        $ref: "#/components/schemas/SettingsSection"
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Validation failed"
+            errors:
+              - field: "paymentGraceDays"
+                message: "paymentGraceDays must be a positive integer"
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Authentication required"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Insufficient permissions"
+
+  schemas:
+    # -- Settings Section Enum -----------------------------------------------
+    SettingsSection:
+      type: string
+      description: Available settings sections
+      enum:
+        - system
+        - ticket
+        - notifications
+        - security
+        - data
+        - device
+      example: "system"
+
+    # -- System Settings -----------------------------------------------------
+    SystemSettings:
+      type: object
+      description: General system configuration
+      properties:
+        organizationName:
+          type: string
+          description: Name of the organization operating the system
+          example: "Ghana Police Service"
+        timezone:
+          type: string
+          description: Default timezone for the system
+          default: "Africa/Accra"
+          example: "Africa/Accra"
+        dateFormat:
+          type: string
+          description: Display date format across the system
+          default: "DD/MM/YYYY"
+          example: "DD/MM/YYYY"
+        currency:
+          type: string
+          description: Currency code used for fines and payments
+          default: "GHS"
+          example: "GHS"
+        maintenanceMode:
+          type: boolean
+          description: >
+            When true, the system is in maintenance mode and only
+            super_admin users can access it.
+          default: false
+          example: false
+
+    # -- Ticket Settings -----------------------------------------------------
+    TicketSettings:
+      type: object
+      description: Ticket issuance and management configuration
+      properties:
+        prefix:
+          type: string
+          description: Prefix used for generating ticket numbers
+          default: "GPS"
+          example: "GPS"
+        paymentGraceDays:
+          type: integer
+          description: Number of days allowed for payment before a ticket becomes overdue
+          default: 14
+          minimum: 1
+          example: 14
+        objectionDeadlineDays:
+          type: integer
+          description: Number of days within which an objection can be filed
+          default: 7
+          minimum: 1
+          example: 7
+        maxPhotos:
+          type: integer
+          description: Maximum number of photos that can be attached to a ticket
+          default: 4
+          minimum: 1
+          example: 4
+        maxPhotoSizeMB:
+          type: integer
+          description: Maximum size of each photo in megabytes
+          default: 5
+          minimum: 1
+          example: 5
+        autoOverdueEnabled:
+          type: boolean
+          description: >
+            When true, the system automatically marks unpaid tickets as
+            overdue after the payment grace period expires.
+          default: true
+          example: true
+
+    # -- Notification Settings -----------------------------------------------
+    NotificationSettings:
+      type: object
+      description: Notification delivery configuration
+      properties:
+        smsEnabled:
+          type: boolean
+          description: Enable SMS notifications to offenders
+          default: true
+          example: true
+        emailEnabled:
+          type: boolean
+          description: Enable email notifications to offenders
+          default: true
+          example: true
+        overdueReminderDays:
+          type: array
+          description: >
+            Days before the overdue deadline on which reminder
+            notifications are sent (relative to ticket issue date).
+          items:
+            type: integer
+          default: [7, 14]
+          example: [7, 14]
+        paymentConfirmation:
+          type: boolean
+          description: Send a confirmation notification after successful payment
+          default: true
+          example: true
+
+    # -- Security Settings ---------------------------------------------------
+    SecuritySettings:
+      type: object
+      description: Authentication and security configuration
+      properties:
+        maxLoginAttempts:
+          type: integer
+          description: Maximum failed login attempts before account lockout
+          default: 5
+          minimum: 1
+          example: 5
+        lockoutDurationMinutes:
+          type: integer
+          description: Duration in minutes an account remains locked after exceeding max login attempts
+          default: 30
+          minimum: 1
+          example: 30
+        accessTokenExpiryMinutes:
+          type: integer
+          description: JWT access token expiry time in minutes
+          default: 15
+          minimum: 1
+          example: 15
+        refreshTokenExpiryDays:
+          type: integer
+          description: Refresh token expiry time in days
+          default: 7
+          minimum: 1
+          example: 7
+        passwordMinLength:
+          type: integer
+          description: Minimum required password length
+          default: 8
+          minimum: 6
+          example: 8
+        requirePasswordChange:
+          type: boolean
+          description: >
+            When true, users are required to change their password on
+            first login or after a password reset by an admin.
+          default: true
+          example: true
+
+    # -- Data Settings -------------------------------------------------------
+    DataSettings:
+      type: object
+      description: Data synchronization and retention configuration
+      properties:
+        syncBatchSize:
+          type: integer
+          description: Number of records per sync batch for offline devices
+          default: 50
+          minimum: 1
+          example: 50
+        maxSyncRetries:
+          type: integer
+          description: Maximum number of retry attempts for failed sync operations
+          default: 5
+          minimum: 1
+          example: 5
+        conflictResolution:
+          type: string
+          description: >
+            Strategy for resolving conflicts when offline data conflicts
+            with server data during sync.
+          enum:
+            - server-wins
+            - client-wins
+          default: "server-wins"
+          example: "server-wins"
+        dataRetentionDays:
+          type: integer
+          description: Number of days to retain ticket and audit data before archival
+          default: 365
+          minimum: 30
+          example: 365
+
+    # -- Device Settings -----------------------------------------------------
+    DeviceSettings:
+      type: object
+      description: Handheld device configuration
+      properties:
+        gpsRequired:
+          type: boolean
+          description: Require GPS coordinates when issuing a ticket
+          default: true
+          example: true
+        cameraRequired:
+          type: boolean
+          description: Require at least one photo when issuing a ticket
+          default: false
+          example: false
+        offlineEnabled:
+          type: boolean
+          description: Allow officers to issue tickets while offline
+          default: true
+          example: true
+        autoSyncIntervalSeconds:
+          type: integer
+          description: Interval in seconds between automatic sync attempts when online
+          default: 300
+          minimum: 30
+          example: 300
+
+    # -- Error Response ------------------------------------------------------
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "An error occurred"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string

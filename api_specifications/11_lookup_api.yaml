@@ -1,0 +1,310 @@
+openapi: "3.0.3"
+info:
+  title: "Ghana Police Ticketing - Lookup Data API"
+  description: |
+    Reference data endpoint for handheld devices to cache locally for offline use.
+    Returns all active offences, regions, stations, and vehicle types in a single
+    request.
+
+    Clients should use the `If-Modified-Since` header for conditional requests to
+    avoid re-downloading unchanged data. The `lastUpdated` field in the response
+    represents the most recent `updatedAt` timestamp across all returned entities.
+  version: "1.0.0"
+
+servers:
+  - url: "http://localhost:8000/api"
+    description: "Development"
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Lookup
+    description: Reference data for offline caching
+
+paths:
+  /lookup:
+    get:
+      tags: [Lookup]
+      summary: Get all reference data
+      description: |
+        Returns all active offences, regions, stations, and vehicle types in a
+        single payload designed for handheld device local caching.
+
+        **Business rules:**
+        - Only active items are returned (inactive records are excluded).
+        - `lastUpdated` is the most recent `updatedAt` across all entities.
+        - Clients can send the `If-Modified-Since` header with the value of
+          `lastUpdated` from a previous response. If no data has changed, the
+          server returns `304 Not Modified` with an empty body.
+
+        Accessible by any authenticated user.
+      operationId: getLookupData
+      parameters:
+        - name: If-Modified-Since
+          in: header
+          description: >
+            ISO 8601 date-time from the `lastUpdated` field of a previous
+            response. If no data has changed since this timestamp the server
+            returns 304.
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: All active reference data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/LookupDataResponse"
+              example:
+                success: true
+                data:
+                  offences:
+                    - id: "e5f6a7b8-c9d0-1234-efab-345678901234"
+                      code: "SPD-001"
+                      name: "Exceeding Speed Limit"
+                      category: "speed"
+                      defaultFine: 500.00
+                      minFine: 200.00
+                      maxFine: 1000.00
+                    - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      code: "DOC-001"
+                      name: "Driving Without License"
+                      category: "documentation"
+                      defaultFine: 300.00
+                      minFine: 150.00
+                      maxFine: 600.00
+                  regions:
+                    - id: "aabbccdd-eeff-0011-2233-445566778899"
+                      name: "Greater Accra Region"
+                      code: "GAR"
+                    - id: "bbccddee-ff00-1122-3344-556677889900"
+                      name: "Ashanti Region"
+                      code: "ASH"
+                  stations:
+                    - id: "11223344-5566-7788-99aa-bbccddeeff00"
+                      name: "Accra Central Police Station"
+                      code: "ACC-001"
+                      regionId: "aabbccdd-eeff-0011-2233-445566778899"
+                    - id: "22334455-6677-8899-aabb-ccddeeff0011"
+                      name: "Kumasi Central Police Station"
+                      code: "KUM-001"
+                      regionId: "bbccddee-ff00-1122-3344-556677889900"
+                  vehicleTypes:
+                    - id: "33445566-7788-99aa-bbcc-ddeeff001122"
+                      name: "Sedan"
+                    - id: "44556677-8899-aabb-ccdd-eeff00112233"
+                      name: "SUV"
+                    - id: "55667788-99aa-bbcc-ddee-ff0011223344"
+                      name: "Motorbike"
+                  lastUpdated: "2025-06-10T14:22:00Z"
+        "304":
+          description: >
+            Not Modified. No reference data has changed since the date
+            provided in the `If-Modified-Since` header.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            message: "Authentication required"
+
+  schemas:
+    # -- Lookup Data Response ------------------------------------------------
+    LookupDataResponse:
+      type: object
+      required:
+        - offences
+        - regions
+        - stations
+        - vehicleTypes
+        - lastUpdated
+      properties:
+        offences:
+          type: array
+          description: All active traffic offences
+          items:
+            $ref: "#/components/schemas/LookupOffence"
+        regions:
+          type: array
+          description: All active regions
+          items:
+            $ref: "#/components/schemas/LookupRegion"
+        stations:
+          type: array
+          description: All active police stations
+          items:
+            $ref: "#/components/schemas/LookupStation"
+        vehicleTypes:
+          type: array
+          description: All active vehicle types
+          items:
+            $ref: "#/components/schemas/LookupVehicleType"
+        lastUpdated:
+          type: string
+          format: date-time
+          description: >
+            The most recent updatedAt timestamp across all returned entities.
+            Clients should store this value and send it as If-Modified-Since
+            on subsequent requests.
+          example: "2025-06-10T14:22:00Z"
+
+    # -- Lookup Offence ------------------------------------------------------
+    LookupOffence:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - category
+        - defaultFine
+        - minFine
+        - maxFine
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique offence identifier
+          example: "e5f6a7b8-c9d0-1234-efab-345678901234"
+        code:
+          type: string
+          description: Unique offence code
+          example: "SPD-001"
+        name:
+          type: string
+          description: Offence display name
+          example: "Exceeding Speed Limit"
+        category:
+          $ref: "#/components/schemas/OffenceCategory"
+        defaultFine:
+          type: number
+          format: double
+          description: Default fine amount in GHS
+          example: 500.00
+        minFine:
+          type: number
+          format: double
+          description: Minimum fine amount in GHS
+          example: 200.00
+        maxFine:
+          type: number
+          format: double
+          description: Maximum fine amount in GHS
+          example: 1000.00
+
+    # -- Lookup Region -------------------------------------------------------
+    LookupRegion:
+      type: object
+      required:
+        - id
+        - name
+        - code
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique region identifier
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+        name:
+          type: string
+          description: Region name
+          example: "Greater Accra Region"
+        code:
+          type: string
+          description: Region code
+          example: "GAR"
+
+    # -- Lookup Station ------------------------------------------------------
+    LookupStation:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - regionId
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique station identifier
+          example: "11223344-5566-7788-99aa-bbccddeeff00"
+        name:
+          type: string
+          description: Station name
+          example: "Accra Central Police Station"
+        code:
+          type: string
+          description: Station code
+          example: "ACC-001"
+        regionId:
+          type: string
+          format: uuid
+          description: ID of the region this station belongs to
+          example: "aabbccdd-eeff-0011-2233-445566778899"
+
+    # -- Lookup Vehicle Type -------------------------------------------------
+    LookupVehicleType:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique vehicle type identifier
+          example: "33445566-7788-99aa-bbcc-ddeeff001122"
+        name:
+          type: string
+          description: Vehicle type display name
+          example: "Sedan"
+
+    # -- Offence Category Enum -----------------------------------------------
+    OffenceCategory:
+      type: string
+      enum:
+        - speed
+        - traffic_signal
+        - documentation
+        - vehicle_condition
+        - parking
+        - dangerous_driving
+        - licensing
+        - other
+      example: "speed"
+
+    # -- Error Response ------------------------------------------------------
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "An error occurred"
