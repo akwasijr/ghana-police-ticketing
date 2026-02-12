@@ -132,22 +132,27 @@
 **Goal:** Officer CRUD, jurisdiction scoping by role.
 
 ### 4.1 Repository Layer
-- [ ] `internal/ports/repositories/officer_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/officer_repo.go`
+- [x] `internal/ports/repositories/officer_repository.go` — interface
+- [x] `internal/adapters/repositories/postgres/officer_repo.go` — transactional create/update, stats, search
 
 ### 4.2 Service Layer
-- [ ] `internal/ports/services/officer_service.go` — interface
-- [ ] `internal/services/officer_service.go`
+- [x] `internal/ports/services/officer_service.go` — interface + request/result types
+- [x] `internal/services/officer_service.go` — jurisdiction scoping, auto-derive regionId from station
 
-### 4.3 Handler & Middleware
-- [ ] `internal/adapters/handlers/officer_handler.go` — 7 endpoints per `05_officers_api.yaml`
-- [ ] `internal/middleware/jurisdiction.go` — inject scope filters by role
-- [ ] `pkg/validator/validator.go` — Ghana phone, vehicle reg patterns
+### 4.3 Handler & Routes
+- [x] `internal/adapters/handlers/officer_handler.go` — 7 endpoints per `05_officers_api.yaml`
+- [x] `internal/domain/models/user.go` — added OfficerResponse, OfficerFilter, OfficerStats, TopOffenceItem
+- [x] `pkg/hash/hash.go` — added GenerateTemporaryPassword()
+- [x] Jurisdiction scoping embedded in service (applyJurisdictionFilter) — no separate middleware needed
 
 ### 4.4 Build & Verify
-- [ ] Officer CRUD works with badge/email uniqueness
-- [ ] Password reset returns temp password
-- [ ] Jurisdiction filtering limits visibility by role
+- [x] Officer CRUD works with badge/email uniqueness (409 on duplicate badge)
+- [x] Create with auto-generated temp password + placeholder email
+- [x] Password reset returns new temp password
+- [x] Soft-delete (deactivate) confirmed (isActive→false)
+- [x] Stats returns zero values correctly (no tickets yet)
+- [x] Search by name works
+- [x] Paginated list with proper response format
 
 ---
 

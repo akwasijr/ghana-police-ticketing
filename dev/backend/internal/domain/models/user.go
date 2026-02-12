@@ -105,6 +105,56 @@ type RefreshToken struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 }
 
+// OfficerResponse is the API response for officer management endpoints.
+type OfficerResponse struct {
+	ID               uuid.UUID    `json:"id"`
+	UserID           uuid.UUID    `json:"userId"`
+	BadgeNumber      string       `json:"badgeNumber"`
+	Rank             *string      `json:"rank,omitempty"`
+	RankDisplay      string       `json:"rankDisplay"`
+	FirstName        string       `json:"firstName"`
+	LastName         string       `json:"lastName"`
+	FullName         string       `json:"fullName"`
+	Email            string       `json:"email"`
+	Phone            *string      `json:"phone,omitempty"`
+	Role             string       `json:"role"`
+	IsActive         bool         `json:"isActive"`
+	Station          *StationInfo `json:"station,omitempty"`
+	StationID        uuid.UUID    `json:"stationId"`
+	RegionID         uuid.UUID    `json:"regionId"`
+	AssignedDeviceID *string      `json:"assignedDeviceId,omitempty"`
+	LastLogin        *time.Time   `json:"lastLogin,omitempty"`
+	CreatedAt        time.Time    `json:"createdAt"`
+}
+
+// OfficerFilter holds query parameters for officer listing.
+type OfficerFilter struct {
+	StationID *uuid.UUID
+	RegionID  *uuid.UUID
+	Rank      *string
+	Role      *string
+	IsActive  *bool
+}
+
+// OfficerStats holds officer performance statistics.
+type OfficerStats struct {
+	TotalTickets      int              `json:"totalTickets"`
+	TicketsThisMonth  int              `json:"ticketsThisMonth"`
+	TicketsThisWeek   int              `json:"ticketsThisWeek"`
+	TicketsToday      int              `json:"ticketsToday"`
+	TotalFinesIssued  float64          `json:"totalFinesIssued"`
+	TotalCollected    float64          `json:"totalCollected"`
+	CollectionRate    float64          `json:"collectionRate"`
+	AverageFineAmount float64          `json:"averageFineAmount"`
+	TopOffences       []TopOffenceItem `json:"topOffences"`
+}
+
+type TopOffenceItem struct {
+	Code  string `json:"code"`
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
 // RankDisplayMap maps rank codes to display names.
 var RankDisplayMap = map[string]string{
 	"constable":               "Constable",

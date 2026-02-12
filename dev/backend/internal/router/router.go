@@ -32,17 +32,20 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	userRepo := postgres.NewUserRepo(db)
 	hierarchyRepo := postgres.NewHierarchyRepo(db)
 	offenceRepo := postgres.NewOffenceRepo(db)
+	officerRepo := postgres.NewOfficerRepo(db)
 
 	// Services
 	authService := services.NewAuthService(userRepo, jwtManager, logger)
 	hierarchyService := services.NewHierarchyService(hierarchyRepo, logger)
 	offenceService := services.NewOffenceService(offenceRepo, logger)
+	officerService := services.NewOfficerService(officerRepo, hierarchyRepo, userRepo, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
 	authHandler := handlers.NewAuthHandler(authService)
 	hierarchyHandler := handlers.NewHierarchyHandler(hierarchyService)
 	offenceHandler := handlers.NewOffenceHandler(offenceService)
+	officerHandler := handlers.NewOfficerHandler(officerService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -118,6 +121,20 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 				r.Group(func(r chi.Router) {
 					r.Use(middleware.RequireRole("super_admin"))
 					r.Delete("/{id}", hierarchyHandler.DeleteStation)
+				})
+			})
+
+			// Officers
+			r.Route("/officers", func(r chi.Router) {
+				r.Get("/", officerHandler.List)
+				r.Get("/{id}", officerHandler.Get)
+				r.Get("/{id}/stats", officerHandler.GetStats)
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin", "super_admin"))
+					r.Post("/", officerHandler.Create)
+					r.Put("/{id}", officerHandler.Update)
+					r.Delete("/{id}", officerHandler.Delete)
+					r.Post("/{id}/reset-password", officerHandler.ResetPassword)
 				})
 			})
 

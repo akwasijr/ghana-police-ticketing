@@ -1,8 +1,10 @@
 package hash
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"math/big"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -27,4 +29,15 @@ func CheckPassword(password, hash string) bool {
 func HashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
+}
+
+// GenerateTemporaryPassword creates a random 12-character password.
+func GenerateTemporaryPassword() string {
+	const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789@#$!"
+	b := make([]byte, 12)
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		b[i] = chars[n.Int64()]
+	}
+	return string(b)
 }

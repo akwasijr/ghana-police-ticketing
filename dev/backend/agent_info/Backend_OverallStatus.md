@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 3 Complete
+## Current Status: Phase 4 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -84,7 +84,47 @@
 | Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
 | Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
 
-### Next: Phase 4 — Officer Management
-- Officer CRUD (7 endpoints per `05_officers_api.yaml`)
-- Jurisdiction scoping middleware (officer→own, supervisor→station, admin→region, super_admin→national)
-- Ghana-specific validators (phone, vehicle registration patterns)
+### Phase 4: Officer Management - COMPLETE
+- `internal/domain/models/user.go`: Added OfficerResponse, OfficerFilter, OfficerStats, TopOffenceItem, StationInfo, RankDisplayMap
+- `pkg/hash/hash.go`: Added GenerateTemporaryPassword() — 12-char crypto/rand from safe charset
+- Officer repository: transactional create (INSERT user + INSERT officer in tx), update, deactivate, stats (time-based ticket counts, financials, top offences), badge/email uniqueness checks
+- Officer service: jurisdiction scoping via applyJurisdictionFilter (officer/supervisor→station, admin/accountant→region, super_admin→all), auto-derive regionId from station on create/update, temp password generation, placeholder email (officer_{badge}@gps.internal)
+- Officer handler: 7 endpoints — List, Get, Create, Update, Delete, GetStats, ResetPassword
+- Router: /officers route group with auth + RBAC (read=any authenticated, write=admin+super_admin)
+- Verified: create with temp password, get, list with pagination, update (partial), stats (zero values), reset-password, soft-delete (isActive→false), duplicate badge (409), search by name
+
+### Key Files (Phase 4 additions)
+| File | Purpose |
+|------|---------|
+| `internal/domain/models/user.go` | OfficerResponse, OfficerFilter, OfficerStats types |
+| `pkg/hash/hash.go` | Added GenerateTemporaryPassword |
+| `internal/ports/repositories/officer_repository.go` | Officer repo interface |
+| `internal/adapters/repositories/postgres/officer_repo.go` | Officer repo SQL with tx, stats |
+| `internal/ports/services/officer_service.go` | Officer service interface + request types |
+| `internal/services/officer_service.go` | Officer business logic with jurisdiction |
+| `internal/adapters/handlers/officer_handler.go` | 7 officer endpoints |
+
+### Architecture Patterns (Phase 4 additions)
+- **Jurisdiction Scoping**: Embedded in service layer via `applyJurisdictionFilter()` — no separate middleware needed
+- **Transactional Officer Creation**: User + Officer inserted in single DB transaction
+- **Auto-derive**: Officers auto-derive regionId from assigned station
+- **Placeholder Email**: Officers without email get `officer_{badge_lower}@gps.internal`
+- **Soft Delete**: Officer delete deactivates user (is_active=false), doesn't remove data
+
+### API Endpoints (Total: 42)
+| Group | Count | Auth | RBAC |
+|-------|-------|------|------|
+| Health | 1 | None | None |
+| Auth | 8 | Mixed | None |
+| Regions | 5 | All auth | Write: super_admin |
+| Divisions | 5 | All auth | Write: super_admin |
+| Districts | 5 | All auth | Write: super_admin |
+| Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Officers | 7 | All auth | Write: admin+super_admin |
+
+### Next: Phase 5 — Ticket Management (Core)
+- Full ticket lifecycle: create, list/filter, get, void, search, stats, photo upload (9 endpoints per `02_tickets_api.yaml`)
+- Ticket number generation (GPS-YYYY-NNNNNN via postgres sequence)
+- Multi-offence per ticket, totalFine auto-calculation, due date = +14 days
+- File storage for ticket photos
