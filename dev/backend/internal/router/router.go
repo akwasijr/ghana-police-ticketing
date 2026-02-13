@@ -39,6 +39,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	ticketRepo := postgres.NewTicketRepo(db)
 	paymentRepo := postgres.NewPaymentRepo(db)
 	objectionRepo := postgres.NewObjectionRepo(db)
+	auditRepo := postgres.NewAuditRepo(db)
 
 	// Storage
 	storageService := storage.NewLocalStorage(cfg.StorageLocalPath, "/uploads")
@@ -56,6 +57,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	ticketService := services.NewTicketService(ticketRepo, offenceRepo, hierarchyRepo, storageService, logger)
 	paymentService := services.NewPaymentService(paymentRepo, ticketRepo, providerRegistry, logger)
 	objectionService := services.NewObjectionService(objectionRepo, ticketRepo, logger)
+	auditService := services.NewAuditService(auditRepo, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
@@ -66,6 +68,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	ticketHandler := handlers.NewTicketHandler(ticketService)
 	paymentHandler := handlers.NewPaymentHandler(paymentService)
 	objectionHandler := handlers.NewObjectionHandler(objectionService)
+	auditHandler := handlers.NewAuditHandler(auditService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -91,6 +94,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(jwtManager))
+			r.Use(middleware.Audit(auditService))
 
 			// Regions
 			r.Route("/regions", func(r chi.Router) {
@@ -201,6 +205,14 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 					r.Get("/{id}", objectionHandler.Get)
 					r.Post("/{id}/review", objectionHandler.Review)
 				})
+			})
+
+			// Audit Logs (read-only)
+			r.Route("/audit", func(r chi.Router) {
+				r.Use(middleware.RequireRole("admin", "super_admin"))
+				r.Get("/logs", auditHandler.List)
+				r.Get("/logs/{id}", auditHandler.Get)
+				r.Get("/stats", auditHandler.Stats)
 			})
 
 			// Offences

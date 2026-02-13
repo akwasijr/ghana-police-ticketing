@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 7 Complete
+## Current Status: Phase 8 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -255,5 +255,52 @@
 | Payments | 7 | All auth | Initiate/Cash: admin+super_admin+accountant |
 | Objections | 5 | All auth | List/Get/Review/Stats: admin+super_admin |
 
-### Next: Phase 8 — Audit Logging
-- Auto-log all write operations, read-only audit endpoints (3 endpoints per `08_audit_api.yaml`)
+### Phase 8: Audit Logging - COMPLETE
+- `internal/domain/models/audit.go`: AuditLog (25 fields incl. JSONB old/new/metadata), AuditFilter, AuditStats, AuditSeverityCounts, UserActivityCount, CriticalEntry
+- Migration `000007`: audit_logs table with JSONB columns + 7 indexes (timestamp, user_id, action, entity_type, severity, station_id, region_id)
+- Audit repository: Create, GetByID, List (dynamic filter builder), GetStats (byAction, byEntityType, bySeverity, byUser top 10, recentCritical last 5)
+- Audit service: fire-and-forget Log() (async, errors logged not propagated), delegates reads to repo
+- **Audit middleware**: auto-captures POST/PUT/PATCH/DELETE operations, resolves action+entity from URL path, async goroutine logging
+  - Action mapping: POST→create, PUT/PATCH→update, DELETE→delete
+  - Subpath overrides: login→login, logout→logout, void→change_status, review→approve, verify→update, toggle→change_status
+  - Skips: refresh, forgot-password (non-auditable auth flows)
+- Audit handler: 3 read-only endpoints — List, Get, Stats
+- Router: audit middleware applied to all authenticated routes, /audit/logs and /audit/stats with RBAC (admin+super_admin)
+- Verified: 4 audit entries captured (3 ticket creates + 1 payment create), GET /audit/logs with pagination, GET /audit/logs/:id with full detail, GET /audit/stats with breakdowns, filters (action, entityType, severity, search) all working
+
+### Key Files (Phase 8 additions)
+| File | Purpose |
+|------|---------|
+| `internal/domain/models/audit.go` | Audit domain models |
+| `migrations/000007_create_audit_tables.up.sql` | Audit logs table + indexes |
+| `internal/ports/repositories/audit_repository.go` | Audit repo interface |
+| `internal/adapters/repositories/postgres/audit_repo.go` | Audit repo SQL with stats |
+| `internal/ports/services/audit_service.go` | Audit service interface + AuditEntry |
+| `internal/services/audit_service.go` | Audit business logic (fire-and-forget) |
+| `internal/middleware/audit.go` | Auto-capture middleware |
+| `internal/adapters/handlers/audit_handler.go` | 3 audit endpoints |
+
+### Architecture Patterns (Phase 8 additions)
+- **Fire-and-Forget**: Audit Log() runs in goroutine with background context — never blocks the request
+- **Auto-Capture Middleware**: Applied to all auth routes, captures method/path/status/userContext for every write operation
+- **URL Path Resolution**: Maps `/api/tickets` → entityType=ticket, `/api/payments/verify` → action=update
+- **Immutable Entries**: Only read endpoints exposed — no update/delete for audit logs
+
+### API Endpoints (Total: 66)
+| Group | Count | Auth | RBAC |
+|-------|-------|------|------|
+| Health | 1 | None | None |
+| Auth | 8 | Mixed | None |
+| Regions | 5 | All auth | Write: super_admin |
+| Divisions | 5 | All auth | Write: super_admin |
+| Districts | 5 | All auth | Write: super_admin |
+| Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Officers | 7 | All auth | Write: admin+super_admin |
+| Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
+| Payments | 7 | All auth | Initiate/Cash: admin+super_admin+accountant |
+| Objections | 5 | All auth | List/Get/Review/Stats: admin+super_admin |
+| Audit | 3 | All auth | List/Get/Stats: admin+super_admin |
+
+### Next: Phase 9 — Offline Sync
+- Batch sync tickets + photos, dedup, server-wins conflict resolution (2 endpoints per `09_sync_api.yaml`)

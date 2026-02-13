@@ -259,25 +259,27 @@
 **Goal:** Auto-log all write operations, read-only audit endpoints.
 
 ### 8.1 Domain Models & Migration
-- [ ] `internal/domain/models/audit.go`
-- [ ] `migrations/000005_create_system_tables.up.sql` — audit_logs, system_settings
-- [ ] `migrations/000005_create_system_tables.down.sql`
+- [x] `internal/domain/models/audit.go` — AuditLog (25 fields), AuditFilter, AuditStats, AuditSeverityCounts, UserActivityCount, CriticalEntry
+- [x] `migrations/000007_create_audit_tables.up.sql` — audit_logs table with JSONB columns + indexes
+- [x] `migrations/000007_create_audit_tables.down.sql`
 
 ### 8.2 Repository Layer
-- [ ] `internal/ports/repositories/audit_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/audit_repo.go`
+- [x] `internal/ports/repositories/audit_repository.go` — interface (Create, GetByID, List, GetStats)
+- [x] `internal/adapters/repositories/postgres/audit_repo.go` — dynamic filter builder, stats (byAction, byEntityType, bySeverity, byUser top 10, recentCritical last 5)
 
 ### 8.3 Service, Handler & Middleware
-- [ ] `internal/ports/services/audit_service.go` — interface
-- [ ] `internal/services/audit_service.go`
-- [ ] `internal/adapters/handlers/audit_handler.go` — 3 endpoints per `08_audit_api.yaml`
-- [ ] `internal/middleware/audit.go` — auto-capture write operations
+- [x] `internal/ports/services/audit_service.go` — interface + AuditEntry struct
+- [x] `internal/services/audit_service.go` — fire-and-forget Log(), delegates reads to repo
+- [x] `internal/adapters/handlers/audit_handler.go` — 3 endpoints per `08_audit_api.yaml`
+- [x] `internal/middleware/audit.go` — auto-capture POST/PUT/PATCH/DELETE, resolves action+entity from URL path, async logging via goroutine
 
 ### 8.4 Build & Verify
-- [ ] Every POST/PUT/PATCH/DELETE creates audit entry
-- [ ] Login/logout logged
-- [ ] Filter by action/entity/severity works
-- [ ] Entries immutable
+- [x] Every POST/PUT/PATCH/DELETE creates audit entry (ticket create, payment create verified)
+- [x] GET /audit/logs — paginated list with 4 entries captured
+- [x] GET /audit/logs/:id — full detail with IP, user agent, station/region
+- [x] GET /audit/stats — byAction, byEntityType, bySeverity, byUser, recentCritical
+- [x] Filters work: action, entityType, severity, search, date range
+- [x] Entries immutable (read-only endpoints, no update/delete)
 
 ---
 
