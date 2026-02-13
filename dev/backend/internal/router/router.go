@@ -9,6 +9,7 @@ import (
 
 	"github.com/ghana-police/ticketing-backend/internal/adapters/handlers"
 	"github.com/ghana-police/ticketing-backend/internal/adapters/repositories/postgres"
+	"github.com/ghana-police/ticketing-backend/internal/adapters/storage"
 	"github.com/ghana-police/ticketing-backend/internal/config"
 	"github.com/ghana-police/ticketing-backend/internal/middleware"
 	"github.com/ghana-police/ticketing-backend/internal/services"
@@ -33,12 +34,17 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	hierarchyRepo := postgres.NewHierarchyRepo(db)
 	offenceRepo := postgres.NewOffenceRepo(db)
 	officerRepo := postgres.NewOfficerRepo(db)
+	ticketRepo := postgres.NewTicketRepo(db)
+
+	// Storage
+	storageService := storage.NewLocalStorage(cfg.StorageLocalPath, "/uploads")
 
 	// Services
 	authService := services.NewAuthService(userRepo, jwtManager, logger)
 	hierarchyService := services.NewHierarchyService(hierarchyRepo, logger)
 	offenceService := services.NewOffenceService(offenceRepo, logger)
 	officerService := services.NewOfficerService(officerRepo, hierarchyRepo, userRepo, logger)
+	ticketService := services.NewTicketService(ticketRepo, offenceRepo, hierarchyRepo, storageService, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
@@ -46,6 +52,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	hierarchyHandler := handlers.NewHierarchyHandler(hierarchyService)
 	offenceHandler := handlers.NewOffenceHandler(offenceService)
 	officerHandler := handlers.NewOfficerHandler(officerService)
+	ticketHandler := handlers.NewTicketHandler(ticketService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -135,6 +142,25 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 					r.Put("/{id}", officerHandler.Update)
 					r.Delete("/{id}", officerHandler.Delete)
 					r.Post("/{id}/reset-password", officerHandler.ResetPassword)
+				})
+			})
+
+			// Tickets
+			r.Route("/tickets", func(r chi.Router) {
+				r.Get("/", ticketHandler.List)
+				r.Get("/stats", ticketHandler.Stats)
+				r.Get("/search", ticketHandler.Search)
+				r.Get("/number/{ticketNumber}", ticketHandler.GetByNumber)
+				r.Get("/{id}", ticketHandler.Get)
+				r.Post("/", ticketHandler.Create)
+				r.Post("/{id}/photos", ticketHandler.UploadPhoto)
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin", "super_admin"))
+					r.Patch("/{id}", ticketHandler.Update)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("supervisor", "admin", "super_admin"))
+					r.Post("/{id}/void", ticketHandler.Void)
 				})
 			})
 

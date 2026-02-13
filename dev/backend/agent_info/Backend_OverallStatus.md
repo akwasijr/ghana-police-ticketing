@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 4 Complete
+## Current Status: Phase 5 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -123,8 +123,50 @@
 | Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
 | Officers | 7 | All auth | Write: admin+super_admin |
 
-### Next: Phase 5 — Ticket Management (Core)
-- Full ticket lifecycle: create, list/filter, get, void, search, stats, photo upload (9 endpoints per `02_tickets_api.yaml`)
-- Ticket number generation (GPS-YYYY-NNNNNN via postgres sequence)
-- Multi-offence per ticket, totalFine auto-calculation, due date = +14 days
-- File storage for ticket photos
+### Phase 5: Ticket Management (Core) - COMPLETE
+- `internal/domain/models/ticket.go`: Ticket, TicketResponse, TicketListItem, TicketOffence, TicketPhoto, TicketNote, VehicleInfo, DriverInfo, GeoLocation, TicketFilter, TicketStats
+- Ticket repository: transactional create (ticket + offences in tx), dynamic filter builder (status/date/amount/officer/station/region/category), multi-table joins for full detail (officers+users+stations+offences+photos+notes), search (ILIKE across ticketNumber/vehicleReg/driverName)
+- Ticket service: jurisdiction scoping via applyTicketJurisdiction, offence resolution with custom fine range validation (min<=custom<=max), status transition validation, clientCreatedId dedup, ticket number generation (TKT-YYYY-{REGION}-{SEQ:06d} via postgres sequence)
+- Storage: local file storage adapter (SaveFile → disk, FileURL → /uploads/path)
+- Ticket handler: 9 endpoints — Create, List, Get, GetByNumber, Update (PATCH), Void, Stats, Search, UploadPhoto
+- Router: /tickets with RBAC (create/read=any auth, PATCH=admin+, void=supervisor+)
+- Verified: TKT-2026-GA-000001 format, totalFine auto-calc (800+300=1100), due date +14 days, payment reference PAY-2026-GA-000001, status filter, search, void, dedup (409), photo upload, stats, offence replacement, note append
+
+### Key Files (Phase 5 additions)
+| File | Purpose |
+|------|---------|
+| `internal/domain/models/ticket.go` | All ticket domain models |
+| `internal/ports/repositories/ticket_repository.go` | Ticket repo interface + TicketOffenceInput |
+| `internal/adapters/repositories/postgres/ticket_repo.go` | Full SQL with tx, dynamic filters, stats |
+| `internal/ports/services/ticket_service.go` | Ticket service interface + request types |
+| `internal/ports/services/storage_service.go` | Storage service interface |
+| `internal/services/ticket_service.go` | Ticket business logic |
+| `internal/adapters/storage/local_storage.go` | Local file storage |
+| `internal/adapters/handlers/ticket_handler.go` | 9 ticket endpoints |
+
+### Architecture Patterns (Phase 5 additions)
+- **Ticket Number**: `TKT-YYYY-{REGION_CODE}-{SEQ:06d}` via `nextval('ticket_number_seq')` + region code from officer context
+- **Payment Reference**: `PAY-YYYY-{REGION_CODE}-{SEQ:06d}` — same sequence as ticket number
+- **Total Fine**: Auto-calculated as sum of offence fines; custom fine validated against min/max range
+- **Due Date**: issued_at + 14 days
+- **Dedup**: `clientCreatedId` UUID checked before insert → 409 CONFLICT if exists
+- **Status Transitions**: unpaid→{paid,overdue,objection,cancelled}, overdue→{paid,objection,cancelled}, objection→{unpaid,cancelled}, paid/cancelled=terminal
+- **Photo Storage**: Multipart upload → local disk at `./uploads/tickets/{ticketId}/{uuid}_{filename}`
+
+### API Endpoints (Total: 51)
+| Group | Count | Auth | RBAC |
+|-------|-------|------|------|
+| Health | 1 | None | None |
+| Auth | 8 | Mixed | None |
+| Regions | 5 | All auth | Write: super_admin |
+| Divisions | 5 | All auth | Write: super_admin |
+| Districts | 5 | All auth | Write: super_admin |
+| Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Officers | 7 | All auth | Write: admin+super_admin |
+| Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
+
+### Next: Phase 6 — Payments
+- Cash payments, mock digital payment, stats, receipts (7 endpoints per `03_payments_api.yaml`)
+- Payment creates/updates ticket status to paid
+- Mobile money mock provider stub

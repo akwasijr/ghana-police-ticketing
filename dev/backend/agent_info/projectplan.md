@@ -160,29 +160,33 @@
 **Goal:** Full ticket lifecycle — create, list/filter, get, void, search, stats, photo upload.
 
 ### 5.1 Domain Models
-- [ ] `internal/domain/models/ticket.go` — Ticket, TicketOffence, TicketPhoto, TicketNote, TicketListItem, TicketStats
+- [x] `internal/domain/models/ticket.go` — Ticket, TicketResponse, TicketListItem, TicketOffence, TicketPhoto, TicketNote, VehicleInfo, DriverInfo, GeoLocation, TicketFilter, TicketStats
 
 ### 5.2 Repository Layer
-- [ ] `internal/ports/repositories/ticket_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/ticket_repo.go`
+- [x] `internal/ports/repositories/ticket_repository.go` — interface with TicketOffenceInput
+- [x] `internal/adapters/repositories/postgres/ticket_repo.go` — transactional create, dynamic filter builder, multi-table joins
 
 ### 5.3 Service & Storage
-- [ ] `internal/ports/services/ticket_service.go` — interface
-- [ ] `internal/ports/services/storage_service.go` — interface
-- [ ] `internal/services/ticket_service.go`
-- [ ] `internal/adapters/storage/local_storage.go`
-- [ ] `pkg/ticketnumber/ticketnumber.go` — GPS-YYYY-NNNNNN via postgres sequence
+- [x] `internal/ports/services/ticket_service.go` — interface + CreateTicketRequest, OffenceInput, UpdateTicketRequest, PrintData, PhotoUploadResult
+- [x] `internal/ports/services/storage_service.go` — interface (SaveFile, FileURL)
+- [x] `internal/services/ticket_service.go` — jurisdiction scoping, offence resolution with fine validation, status transitions
+- [x] `internal/adapters/storage/local_storage.go` — local file storage implementation
+- [x] Ticket number generation via postgres sequence (TKT-YYYY-{REGION}-{SEQ:06d})
 
 ### 5.4 Handler
-- [ ] `internal/adapters/handlers/ticket_handler.go` — 9 endpoints per `02_tickets_api.yaml`
+- [x] `internal/adapters/handlers/ticket_handler.go` — 9 endpoints per `02_tickets_api.yaml`
+- [x] Router wired with RBAC (create/read=any auth, PATCH=admin+, void=supervisor+)
 
 ### 5.5 Build & Verify
-- [ ] Ticket creation generates GPS-YYYY-NNNNNN number
-- [ ] totalFine calculated from offences, due date = +14 days
-- [ ] List supports all filters + pagination + jurisdiction
-- [ ] Void works, photo upload stores files
-- [ ] clientCreatedId dedup works
-- [ ] Stats endpoint returns correct counts
+- [x] Ticket creation generates TKT-2026-GA-000001 format + PAY-2026-GA-000001 reference
+- [x] totalFine auto-calculated from offences (800+300=1100), due date = +14 days
+- [x] List with status filter, search by vehicle reg, pagination
+- [x] Void sets status=cancelled with reason and timestamp
+- [x] Photo upload stores PNG, returns URL
+- [x] clientCreatedId dedup returns 409 CONFLICT
+- [x] Stats returns correct counts (total/paid/unpaid/overdue/cancelled + amounts)
+- [x] Update: replace offences recalculates totalFine, append note with officer context
+- [x] Get by ID and by ticket number both work
 
 ---
 
