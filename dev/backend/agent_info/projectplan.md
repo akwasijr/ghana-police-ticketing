@@ -230,24 +230,28 @@
 **Goal:** File objection (7-day deadline), approve/reject with ticket status transitions.
 
 ### 7.1 Domain Models & Migration
-- [ ] `internal/domain/models/objection.go`
-- [ ] `migrations/000004b_create_objection_tables.up.sql`
-- [ ] `migrations/000004b_create_objection_tables.down.sql`
+- [x] `internal/domain/models/objection.go` — Objection, ObjectionResponse, ObjectionAttachment, ObjectionFilter, ObjectionStats
+- [x] `migrations/000006_create_objection_tables.up.sql` — objections + objection_attachments tables
+- [x] `migrations/000006_create_objection_tables.down.sql`
 
 ### 7.2 Repository Layer
-- [ ] `internal/ports/repositories/objection_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/objection_repo.go`
+- [x] `internal/ports/repositories/objection_repository.go` — interface
+- [x] `internal/adapters/repositories/postgres/objection_repo.go` — with hierarchy JOINs, dynamic filter builder, stats with approval rate + avg resolution time
 
 ### 7.3 Service & Handler
-- [ ] `internal/ports/services/objection_service.go` — interface
-- [ ] `internal/services/objection_service.go`
-- [ ] `internal/adapters/handlers/objection_handler.go` — 5 endpoints per `04_objections_api.yaml`
+- [x] `internal/ports/services/objection_service.go` — interface + FileObjectionRequest, FileObjectionResult, ReviewObjectionRequest
+- [x] `internal/services/objection_service.go` — 7-day deadline enforcement, duplicate protection, ticket status transitions
+- [x] `internal/adapters/handlers/objection_handler.go` — 5 endpoints per `04_objections_api.yaml`
+- [x] Router wired with RBAC (file=any auth, list/get/review/stats=admin+super_admin)
 
 ### 7.4 Build & Verify
-- [ ] Filing enforces 7-day deadline + 1-per-ticket
-- [ ] Approve -> ticket cancelled (or fine adjusted)
-- [ ] Reject -> ticket reverts to unpaid/overdue
-- [ ] Stats correct
+- [x] Filing enforces 7-day deadline + 1-per-ticket (status check blocks duplicates)
+- [x] Ticket status → 'objection' on filing
+- [x] Approve → ticket cancelled; reviewer name + notes recorded
+- [x] Reject → ticket reverts to unpaid (or overdue if past due)
+- [x] Stats correct (total/pending/approved/rejected, approvalRate 50%, avgResolutionTimeHours)
+- [x] Full hierarchy in response (station/district/division/region names via JOINs)
+- [x] List with pagination, search, status/date/amount filters
 
 ---
 

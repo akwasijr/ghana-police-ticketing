@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 6 Complete
+## Current Status: Phase 7 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -214,5 +214,46 @@
 | Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
 | Payments | 7 | All auth | Initiate/Cash: admin+super_admin+accountant |
 
-### Next: Phase 7 — Objections
-- File objection (7-day deadline), approve/reject with ticket status transitions (5 endpoints per `04_objections_api.yaml`)
+### Phase 7: Objections - COMPLETE
+- `internal/domain/models/objection.go`: Objection, ObjectionResponse, ObjectionAttachment, ObjectionFilter, ObjectionStats
+- Migration `000006`: objections + objection_attachments tables with indexes
+- Objection repository: Create, GetByID (with full hierarchy JOINs), List (dynamic filter builder + search), Review, GetStats (counts + approval rate + avg resolution time), HasActiveObjection, GetAttachments
+- Objection service: 7-day deadline enforcement (from ticket issuedAt), duplicate protection (only one pending per ticket), ticket status transitions (file→'objection', approve→'cancelled', reject→'unpaid'/'overdue'), offence names + fine denormalized at filing time
+- Objection handler: 5 endpoints — File, List, Get, Review, Stats
+- Router: /objections with RBAC (file=any auth, list/get/review/stats=admin+super_admin)
+- Verified: file objection (status→pending, ticket→objection), approve (ticket→cancelled, reviewer name+notes), reject (ticket→unpaid), duplicate blocked, stats (approvalRate 50%, avgResolutionTime), full hierarchy in response
+
+### Key Files (Phase 7 additions)
+| File | Purpose |
+|------|---------|
+| `internal/domain/models/objection.go` | Objection domain models |
+| `migrations/000006_create_objection_tables.up.sql` | Objections + attachments tables |
+| `internal/ports/repositories/objection_repository.go` | Objection repo interface |
+| `internal/adapters/repositories/postgres/objection_repo.go` | Objection repo SQL with hierarchy JOINs |
+| `internal/ports/services/objection_service.go` | Objection service interface + request types |
+| `internal/services/objection_service.go` | Objection business logic |
+| `internal/adapters/handlers/objection_handler.go` | 5 objection endpoints |
+
+### Architecture Patterns (Phase 7 additions)
+- **7-Day Filing Deadline**: `ticket.IssuedAt + 7 days` — rejects filing after deadline
+- **Ticket Status Transitions**: file→'objection', approve→'cancelled' (or 'unpaid' if adjustedFine), reject→'unpaid'/'overdue'
+- **Denormalization**: vehicleReg, offenceType, fineAmount stored in objections table at filing time for efficient listing
+- **Review Deadline**: 14 days from filing date for reviewer to act
+
+### API Endpoints (Total: 63)
+| Group | Count | Auth | RBAC |
+|-------|-------|------|------|
+| Health | 1 | None | None |
+| Auth | 8 | Mixed | None |
+| Regions | 5 | All auth | Write: super_admin |
+| Divisions | 5 | All auth | Write: super_admin |
+| Districts | 5 | All auth | Write: super_admin |
+| Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Officers | 7 | All auth | Write: admin+super_admin |
+| Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
+| Payments | 7 | All auth | Initiate/Cash: admin+super_admin+accountant |
+| Objections | 5 | All auth | List/Get/Review/Stats: admin+super_admin |
+
+### Next: Phase 8 — Audit Logging
+- Auto-log all write operations, read-only audit endpoints (3 endpoints per `08_audit_api.yaml`)

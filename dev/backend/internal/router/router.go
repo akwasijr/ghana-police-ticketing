@@ -38,6 +38,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	officerRepo := postgres.NewOfficerRepo(db)
 	ticketRepo := postgres.NewTicketRepo(db)
 	paymentRepo := postgres.NewPaymentRepo(db)
+	objectionRepo := postgres.NewObjectionRepo(db)
 
 	// Storage
 	storageService := storage.NewLocalStorage(cfg.StorageLocalPath, "/uploads")
@@ -54,6 +55,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	officerService := services.NewOfficerService(officerRepo, hierarchyRepo, userRepo, logger)
 	ticketService := services.NewTicketService(ticketRepo, offenceRepo, hierarchyRepo, storageService, logger)
 	paymentService := services.NewPaymentService(paymentRepo, ticketRepo, providerRegistry, logger)
+	objectionService := services.NewObjectionService(objectionRepo, ticketRepo, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
@@ -63,6 +65,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	officerHandler := handlers.NewOfficerHandler(officerService)
 	ticketHandler := handlers.NewTicketHandler(ticketService)
 	paymentHandler := handlers.NewPaymentHandler(paymentService)
+	objectionHandler := handlers.NewObjectionHandler(objectionService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -185,6 +188,18 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 					r.Use(middleware.RequireRole("admin", "super_admin", "accountant"))
 					r.Post("/initiate", paymentHandler.Initiate)
 					r.Post("/cash", paymentHandler.RecordCash)
+				})
+			})
+
+			// Objections
+			r.Route("/objections", func(r chi.Router) {
+				r.Post("/", objectionHandler.File)
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin", "super_admin"))
+					r.Get("/", objectionHandler.List)
+					r.Get("/stats", objectionHandler.Stats)
+					r.Get("/{id}", objectionHandler.Get)
+					r.Post("/{id}/review", objectionHandler.Review)
 				})
 			})
 
