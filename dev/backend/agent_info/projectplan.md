@@ -316,28 +316,34 @@
 **Goal:** Dashboard analytics, reference data endpoint, system settings CRUD.
 
 ### 10.1 Domain Models
-- [ ] `internal/domain/models/analytics.go`
-- [ ] `internal/domain/models/settings.go`
+- [x] `internal/domain/models/analytics.go`
+- [x] `internal/domain/models/settings.go`
+- [x] `migrations/000009_create_system_settings_table.up.sql`
 
 ### 10.2 Repository Layer
-- [ ] `internal/ports/repositories/analytics_repository.go` — interface
-- [ ] `internal/ports/repositories/settings_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/analytics_repo.go`
-- [ ] `internal/adapters/repositories/postgres/settings_repo.go`
+- [x] `internal/ports/repositories/analytics_repository.go` — interface
+- [x] `internal/ports/repositories/settings_repository.go` — interface
+- [x] `internal/ports/repositories/lookup_repository.go` — interface
+- [x] `internal/adapters/repositories/postgres/analytics_repo.go`
+- [x] `internal/adapters/repositories/postgres/settings_repo.go`
+- [x] `internal/adapters/repositories/postgres/lookup_repo.go`
 
 ### 10.3 Service & Handler
-- [ ] `internal/ports/services/analytics_service.go` — interface
-- [ ] `internal/ports/services/settings_service.go` — interface
-- [ ] `internal/services/analytics_service.go`
-- [ ] `internal/services/settings_service.go`
-- [ ] `internal/adapters/handlers/analytics_handler.go` — 6 endpoints per `10_analytics_api.yaml`
-- [ ] `internal/adapters/handlers/lookup_handler.go` — 1 endpoint per `11_lookup_api.yaml`
-- [ ] `internal/adapters/handlers/settings_handler.go` — 4 endpoints per `14_settings_api.yaml`
+- [x] `internal/ports/services/analytics_service.go` — interface
+- [x] `internal/ports/services/settings_service.go` — interface
+- [x] `internal/ports/services/lookup_service.go` — interface
+- [x] `internal/services/analytics_service.go`
+- [x] `internal/services/settings_service.go`
+- [x] `internal/services/lookup_service.go`
+- [x] `internal/adapters/handlers/analytics_handler.go` — 6 endpoints per `10_analytics_api.yaml`
+- [x] `internal/adapters/handlers/lookup_handler.go` — 1 endpoint per `11_lookup_api.yaml`
+- [x] `internal/adapters/handlers/settings_handler.go` — 4 endpoints per `14_settings_api.yaml`
+- [x] Router wiring (analytics: admin+super_admin, settings read: admin+super_admin, settings write: super_admin, lookup: any auth)
 
 ### 10.4 Build & Verify
-- [ ] Analytics endpoints return correct aggregates
-- [ ] Lookup returns combined reference data with If-Modified-Since/304
-- [ ] Settings CRUD by section works
+- [x] Analytics endpoints return correct aggregates (summary, trends, top-offences, by-region, revenue, officer-performance)
+- [x] Lookup returns combined reference data with If-Modified-Since/304
+- [x] Settings CRUD by section works (getAll, getBySection, updateAll, updateSection)
 
 ---
 
@@ -353,6 +359,7 @@
 | 000006 | 7 | objections, objection_attachments |
 | 000007 | 8 | audit_logs |
 | 000008 | 9 | device_syncs |
+| 000009 | 10 | system_settings (6 default sections seeded) |
 
 ## Final Verification
 

@@ -41,6 +41,9 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	objectionRepo := postgres.NewObjectionRepo(db)
 	auditRepo := postgres.NewAuditRepo(db)
 	syncRepo := postgres.NewSyncRepo(db)
+	analyticsRepo := postgres.NewAnalyticsRepo(db)
+	settingsRepo := postgres.NewSettingsRepo(db)
+	lookupRepo := postgres.NewLookupRepo(db)
 
 	// Storage
 	storageService := storage.NewLocalStorage(cfg.StorageLocalPath, "/uploads")
@@ -60,6 +63,9 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	objectionService := services.NewObjectionService(objectionRepo, ticketRepo, logger)
 	auditService := services.NewAuditService(auditRepo, logger)
 	syncService := services.NewSyncService(syncRepo, ticketRepo, offenceRepo, hierarchyRepo, storageService, logger)
+	analyticsService := services.NewAnalyticsService(analyticsRepo, logger)
+	settingsService := services.NewSettingsService(settingsRepo, logger)
+	lookupService := services.NewLookupService(lookupRepo, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
@@ -72,6 +78,9 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	objectionHandler := handlers.NewObjectionHandler(objectionService)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	syncHandler := handlers.NewSyncHandler(syncService)
+	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService)
+	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	lookupHandler := handlers.NewLookupHandler(lookupService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -223,6 +232,34 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 				r.Post("/", syncHandler.BatchSync)
 				r.Get("/status", syncHandler.GetStatus)
 			})
+
+			// Analytics (admin/super_admin)
+			r.Route("/analytics", func(r chi.Router) {
+				r.Use(middleware.RequireRole("admin", "super_admin"))
+				r.Get("/summary", analyticsHandler.Summary)
+				r.Get("/trends", analyticsHandler.Trends)
+				r.Get("/top-offences", analyticsHandler.TopOffences)
+				r.Get("/by-region", analyticsHandler.ByRegion)
+				r.Get("/revenue", analyticsHandler.Revenue)
+				r.Get("/officer-performance", analyticsHandler.OfficerPerformance)
+			})
+
+			// Settings
+			r.Route("/settings", func(r chi.Router) {
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin", "super_admin"))
+					r.Get("/", settingsHandler.GetAll)
+					r.Get("/{section}", settingsHandler.GetBySection)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("super_admin"))
+					r.Put("/", settingsHandler.UpdateAll)
+					r.Put("/{section}", settingsHandler.UpdateSection)
+				})
+			})
+
+			// Lookup (any authenticated user)
+			r.Get("/lookup", lookupHandler.GetLookupData)
 
 			// Offences
 			r.Route("/offences", func(r chi.Router) {
