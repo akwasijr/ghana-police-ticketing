@@ -286,20 +286,29 @@
 ## Phase 9: Offline Sync
 **Goal:** Batch sync tickets + photos, dedup, server-wins conflict resolution.
 
-### 9.1 Domain Models
-- [ ] `internal/domain/models/sync.go`
+### 9.1 Domain Models & Migration
+- [x] `internal/domain/models/sync.go` — SyncRequest, SyncTicketItem, SyncPhotoItem, SyncTicketData, SyncTicketUpdateData, SyncResponse, SyncResults, SyncTicketResult, SyncPhotoResult, ServerUpdates, ServerTicketUpdate, SyncStatus, DeviceSync
+- [x] `migrations/000008_create_device_syncs_table.up.sql` — device_syncs table (user_id+device_id unique)
+- [x] `migrations/000008_create_device_syncs_table.down.sql`
 
-### 9.2 Service & Handler
-- [ ] `internal/ports/services/sync_service.go` — interface
-- [ ] `internal/services/sync_service.go`
-- [ ] `internal/adapters/handlers/sync_handler.go` — 2 endpoints per `09_sync_api.yaml`
+### 9.2 Repository Layer
+- [x] `internal/ports/repositories/sync_repository.go` — interface (UpsertDeviceSync, GetDeviceSync, GetTicketsUpdatedSince, CountTicketsUpdatedSince)
+- [x] `internal/adapters/repositories/postgres/sync_repo.go` — upsert with ON CONFLICT, jurisdiction-scoped server updates query
 
-### 9.3 Build & Verify
-- [ ] Batch <= 50 items processed
-- [ ] clientCreatedId dedup returns existing
-- [ ] Server-wins on timestamp conflict
-- [ ] Photos decoded + stored
-- [ ] Server updates since lastSync returned
+### 9.3 Service & Handler
+- [x] `internal/ports/services/sync_service.go` — interface (BatchSync, GetStatus)
+- [x] `internal/services/sync_service.go` — batch processing, dedup via clientCreatedId, server-wins conflict resolution, photo base64 decode + storage, offence resolution, jurisdiction-scoped server updates
+- [x] `internal/adapters/handlers/sync_handler.go` — 2 endpoints per `09_sync_api.yaml`
+- [x] Router wired: POST /sync, GET /sync/status (any authenticated user)
+
+### 9.4 Build & Verify
+- [x] Batch <= 50 items enforced (51 items → 400 BATCH_SIZE_EXCEEDED)
+- [x] clientCreatedId dedup returns existing server ID (idempotent)
+- [x] Server-wins on timestamp conflict (device older → status:conflict)
+- [x] Device timestamp newer → update succeeds
+- [x] Server updates since lastSyncTimestamp returned (paid, cancelled, updated tickets)
+- [x] GET /sync/status returns lastSyncTimestamp + pendingServerUpdates count
+- [x] First-time device returns null lastSyncTimestamp, 0 pending
 
 ---
 
@@ -342,7 +351,8 @@
 | 000004 | 3 | Seed data (15 offences, 10 vehicle types) |
 | 000005 | 6 | payments |
 | 000006 | 7 | objections, objection_attachments |
-| 000007 | 8 | audit_logs, system_settings |
+| 000007 | 8 | audit_logs |
+| 000008 | 9 | device_syncs |
 
 ## Final Verification
 

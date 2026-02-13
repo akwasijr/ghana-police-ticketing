@@ -40,6 +40,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	paymentRepo := postgres.NewPaymentRepo(db)
 	objectionRepo := postgres.NewObjectionRepo(db)
 	auditRepo := postgres.NewAuditRepo(db)
+	syncRepo := postgres.NewSyncRepo(db)
 
 	// Storage
 	storageService := storage.NewLocalStorage(cfg.StorageLocalPath, "/uploads")
@@ -58,6 +59,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	paymentService := services.NewPaymentService(paymentRepo, ticketRepo, providerRegistry, logger)
 	objectionService := services.NewObjectionService(objectionRepo, ticketRepo, logger)
 	auditService := services.NewAuditService(auditRepo, logger)
+	syncService := services.NewSyncService(syncRepo, ticketRepo, offenceRepo, hierarchyRepo, storageService, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
@@ -69,6 +71,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	paymentHandler := handlers.NewPaymentHandler(paymentService)
 	objectionHandler := handlers.NewObjectionHandler(objectionService)
 	auditHandler := handlers.NewAuditHandler(auditService)
+	syncHandler := handlers.NewSyncHandler(syncService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -213,6 +216,12 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 				r.Get("/logs", auditHandler.List)
 				r.Get("/logs/{id}", auditHandler.Get)
 				r.Get("/stats", auditHandler.Stats)
+			})
+
+			// Sync (offline device sync)
+			r.Route("/sync", func(r chi.Router) {
+				r.Post("/", syncHandler.BatchSync)
+				r.Get("/status", syncHandler.GetStatus)
 			})
 
 			// Offences

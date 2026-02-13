@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 8 Complete
+## Current Status: Phase 9 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -302,5 +302,53 @@
 | Objections | 5 | All auth | List/Get/Review/Stats: admin+super_admin |
 | Audit | 3 | All auth | List/Get/Stats: admin+super_admin |
 
-### Next: Phase 9 — Offline Sync
-- Batch sync tickets + photos, dedup, server-wins conflict resolution (2 endpoints per `09_sync_api.yaml`)
+### Phase 9: Offline Sync - COMPLETE
+- `internal/domain/models/sync.go`: SyncRequest/Response, SyncTicketItem/Result, SyncPhotoItem/Result, ServerTicketUpdate, SyncStatus, DeviceSync
+- Migration `000008`: device_syncs table with unique(user_id, device_id) constraint
+- Sync repository: UpsertDeviceSync (ON CONFLICT upsert), GetDeviceSync, GetTicketsUpdatedSince (jurisdiction-scoped), CountTicketsUpdatedSince
+- Sync service: batch processing (max 50 items), ticket create with offence resolution + ticket number generation, ticket update with server-wins conflict resolution, photo base64 decode + storage, server updates since lastSyncTimestamp
+- Sync handler: 2 endpoints — BatchSync (POST /sync), GetStatus (GET /sync/status)
+- **Key Features**:
+  - Idempotency via clientCreatedId — re-submitting returns existing server ID
+  - Server-wins conflict resolution — compares device timestamp vs server updatedAt
+  - Jurisdiction-scoped server updates — officer sees station tickets, admin sees region tickets
+  - Device sync tracking — lastSyncTimestamp + items_synced per user+device
+  - Photo sync with base64 decode, 5MB limit, ticket ID resolution (local→server mapping)
+- Verified: batch create, idempotent re-submit, server-wins conflict (old timestamp → conflict, new timestamp → success), batch size limit (51 → 400), sync status before/after
+
+### Key Files (Phase 9 additions)
+| File | Purpose |
+|------|---------|
+| `internal/domain/models/sync.go` | Sync domain models |
+| `migrations/000008_create_device_syncs_table.up.sql` | Device sync tracking table |
+| `internal/ports/repositories/sync_repository.go` | Sync repo interface |
+| `internal/adapters/repositories/postgres/sync_repo.go` | Sync repo SQL |
+| `internal/ports/services/sync_service.go` | Sync service interface |
+| `internal/services/sync_service.go` | Sync business logic |
+| `internal/adapters/handlers/sync_handler.go` | 2 sync endpoints |
+
+### Architecture Patterns (Phase 9 additions)
+- **Idempotent Create**: clientCreatedId checked before insert — existing record returned on duplicate
+- **Server-Wins Conflict**: `existing.UpdatedAt.After(device.Timestamp)` → status "conflict"
+- **Local→Server ID Mapping**: Tickets created in same batch get their server IDs mapped so photos can reference them
+- **Jurisdiction-Scoped Updates**: Server updates filtered by officer's station or admin's region
+
+### API Endpoints (Total: 68)
+| Group | Count | Auth | RBAC |
+|-------|-------|------|------|
+| Health | 1 | None | None |
+| Auth | 8 | Mixed | None |
+| Regions | 5 | All auth | Write: super_admin |
+| Divisions | 5 | All auth | Write: super_admin |
+| Districts | 5 | All auth | Write: super_admin |
+| Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Officers | 7 | All auth | Write: admin+super_admin |
+| Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
+| Payments | 7 | All auth | Initiate/Cash: admin+super_admin+accountant |
+| Objections | 5 | All auth | List/Get/Review/Stats: admin+super_admin |
+| Audit | 3 | All auth | List/Get/Stats: admin+super_admin |
+| Sync | 2 | All auth | None (any authenticated) |
+
+### Next: Phase 10 — Analytics, Lookup & Settings
+- Dashboard analytics, reference data endpoint, system settings CRUD
