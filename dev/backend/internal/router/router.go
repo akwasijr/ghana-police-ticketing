@@ -8,10 +8,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ghana-police/ticketing-backend/internal/adapters/handlers"
+	"github.com/ghana-police/ticketing-backend/internal/adapters/payment_providers"
 	"github.com/ghana-police/ticketing-backend/internal/adapters/repositories/postgres"
 	"github.com/ghana-police/ticketing-backend/internal/adapters/storage"
 	"github.com/ghana-police/ticketing-backend/internal/config"
 	"github.com/ghana-police/ticketing-backend/internal/middleware"
+	portservices "github.com/ghana-police/ticketing-backend/internal/ports/services"
 	"github.com/ghana-police/ticketing-backend/internal/services"
 	jwtpkg "github.com/ghana-police/ticketing-backend/pkg/jwt"
 )
@@ -35,9 +37,15 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	offenceRepo := postgres.NewOffenceRepo(db)
 	officerRepo := postgres.NewOfficerRepo(db)
 	ticketRepo := postgres.NewTicketRepo(db)
+	paymentRepo := postgres.NewPaymentRepo(db)
 
 	// Storage
 	storageService := storage.NewLocalStorage(cfg.StorageLocalPath, "/uploads")
+
+	// Payment providers
+	providerRegistry := portservices.NewProviderRegistry()
+	providerRegistry.Register(payment_providers.NewCashProvider())
+	providerRegistry.Register(payment_providers.NewMomoMockProvider())
 
 	// Services
 	authService := services.NewAuthService(userRepo, jwtManager, logger)
@@ -45,6 +53,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	offenceService := services.NewOffenceService(offenceRepo, logger)
 	officerService := services.NewOfficerService(officerRepo, hierarchyRepo, userRepo, logger)
 	ticketService := services.NewTicketService(ticketRepo, offenceRepo, hierarchyRepo, storageService, logger)
+	paymentService := services.NewPaymentService(paymentRepo, ticketRepo, providerRegistry, logger)
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandler(db, rdb)
@@ -53,6 +62,7 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 	offenceHandler := handlers.NewOffenceHandler(offenceService)
 	officerHandler := handlers.NewOfficerHandler(officerService)
 	ticketHandler := handlers.NewTicketHandler(ticketService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Public endpoints
@@ -161,6 +171,20 @@ func New(cfg *config.Config, logger *zap.Logger, db *pgxpool.Pool, rdb *redis.Cl
 				r.Group(func(r chi.Router) {
 					r.Use(middleware.RequireRole("supervisor", "admin", "super_admin"))
 					r.Post("/{id}/void", ticketHandler.Void)
+				})
+			})
+
+			// Payments
+			r.Route("/payments", func(r chi.Router) {
+				r.Get("/", paymentHandler.List)
+				r.Get("/stats", paymentHandler.Stats)
+				r.Get("/{id}", paymentHandler.Get)
+				r.Get("/{id}/receipt", paymentHandler.Receipt)
+				r.Post("/verify", paymentHandler.Verify)
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin", "super_admin", "accountant"))
+					r.Post("/initiate", paymentHandler.Initiate)
+					r.Post("/cash", paymentHandler.RecordCash)
 				})
 			})
 

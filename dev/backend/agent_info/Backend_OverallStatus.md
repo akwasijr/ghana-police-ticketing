@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status: Phase 5 Complete
+## Current Status: Phase 6 Complete
 
 ### Phase 1: Project Bootstrap & Foundation - COMPLETE
 - Go module initialized with all dependencies (chi, pgx, zap, jwt, bcrypt, migrate, cors, redis, godotenv, uuid)
@@ -166,7 +166,53 @@
 | Officers | 7 | All auth | Write: admin+super_admin |
 | Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
 
-### Next: Phase 6 — Payments
-- Cash payments, mock digital payment, stats, receipts (7 endpoints per `03_payments_api.yaml`)
-- Payment creates/updates ticket status to paid
-- Mobile money mock provider stub
+### Phase 6: Payments - COMPLETE
+- `internal/domain/models/payment.go`: Payment, PaymentFilter, PaymentStats, MethodStats, PaymentReceipt
+- Migration `000005`: payments table with FK to tickets/users/stations, indexes, receipt_number_seq
+- **Pluggable Provider Pattern**: PaymentProvider interface + ProviderRegistry (map[method]→provider)
+  - `internal/ports/services/payment_provider.go`: interface with Initiate/Verify + ProviderRegistry
+  - `internal/adapters/payment_providers/cash_provider.go`: instant completion, no external call
+  - `internal/adapters/payment_providers/momo_mock_provider.go`: simulates async MoMo (MTN/Vodafone/AirtelTigo), in-memory session store, auto-completes on verify
+- Payment repository: Create, GetByID, GetByReference, List (with dynamic filter builder), UpdateStatus, Complete (transactional: update payment + ticket status to paid), GetStats (by status/method/time-period), GetReceipt (multi-table join), HasPendingOrCompleted, NextReceiptNumber
+- Payment service: provider delegation via registry, ticket eligibility check (unpaid/overdue only), duplicate payment protection (409 if pending/completed exists), receipt generation (RCP-YYYY-NNNNNNN)
+- Payment handler: 7 endpoints — Initiate, RecordCash, Verify, List, Get, Stats, Receipt
+- Router: /payments with RBAC (initiate/cash=admin+super_admin+accountant, read/verify=any auth)
+- Verified: cash payment (GHS 400, RCP-2026-0000001), MoMo digital initiate (USSD code) + verify (auto-complete, RCP-2026-0000002), receipt with ticket/officer/station details, stats by status/method + time breakdowns, list with filters, ticket status auto-updated to "paid"
+
+### Key Files (Phase 6 additions)
+| File | Purpose |
+|------|---------|
+| `internal/domain/models/payment.go` | Payment domain models |
+| `migrations/000005_create_payment_tables.up.sql` | Payments table + receipt seq |
+| `internal/ports/services/payment_provider.go` | PaymentProvider interface + ProviderRegistry |
+| `internal/adapters/payment_providers/cash_provider.go` | Cash provider (instant) |
+| `internal/adapters/payment_providers/momo_mock_provider.go` | MoMo mock provider |
+| `internal/ports/repositories/payment_repository.go` | Payment repo interface |
+| `internal/adapters/repositories/postgres/payment_repo.go` | Payment repo SQL |
+| `internal/ports/services/payment_service.go` | Payment service interface + request types |
+| `internal/services/payment_service.go` | Payment business logic |
+| `internal/adapters/handlers/payment_handler.go` | 7 payment endpoints |
+
+### Architecture Patterns (Phase 6 additions)
+- **Pluggable Providers**: PaymentProvider interface → Register at startup → Service delegates by method name
+- **Provider Registry**: `ProviderRegistry.Register(provider)` maps each supported method to the provider; `Get(method)` returns the provider
+- **Receipt Number**: `RCP-YYYY-{SEQ:07d}` via `nextval('receipt_number_seq')`
+- **Transactional Complete**: Payment update + ticket status update in single DB transaction
+- **Duplicate Protection**: `HasPendingOrCompleted()` blocks second payment on same ticket
+
+### API Endpoints (Total: 58)
+| Group | Count | Auth | RBAC |
+|-------|-------|------|------|
+| Health | 1 | None | None |
+| Auth | 8 | Mixed | None |
+| Regions | 5 | All auth | Write: super_admin |
+| Divisions | 5 | All auth | Write: super_admin |
+| Districts | 5 | All auth | Write: super_admin |
+| Stations | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Offences | 6 | All auth | Write: admin+super_admin, Delete: super_admin |
+| Officers | 7 | All auth | Write: admin+super_admin |
+| Tickets | 9 | All auth | PATCH: admin+, Void: supervisor+ |
+| Payments | 7 | All auth | Initiate/Cash: admin+super_admin+accountant |
+
+### Next: Phase 7 — Objections
+- File objection (7-day deadline), approve/reject with ticket status transitions (5 endpoints per `04_objections_api.yaml`)

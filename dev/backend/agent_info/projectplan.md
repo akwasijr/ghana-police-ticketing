@@ -191,29 +191,38 @@
 ---
 
 ## Phase 6: Payments
-**Goal:** Cash payments, mock digital payment, stats, receipts.
+**Goal:** Cash payments, mock digital payment, pluggable provider adapters, stats, receipts.
 
 ### 6.1 Domain Models & Migration
-- [ ] `internal/domain/models/payment.go`
-- [ ] `migrations/000004_create_payment_tables.up.sql`
-- [ ] `migrations/000004_create_payment_tables.down.sql`
+- [x] `internal/domain/models/payment.go` — Payment, PaymentFilter, PaymentStats, MethodStats, PaymentReceipt
+- [x] `migrations/000005_create_payment_tables.up.sql` — payments table + receipt_number_seq
+- [x] `migrations/000005_create_payment_tables.down.sql`
 
-### 6.2 Repository Layer
-- [ ] `internal/ports/repositories/payment_repository.go` — interface
-- [ ] `internal/adapters/repositories/postgres/payment_repo.go`
+### 6.2 Payment Provider Interface & Adapters (Pluggable Design)
+- [x] `internal/ports/services/payment_provider.go` — PaymentProvider interface + ProviderRegistry (map[method]→provider)
+- [x] `internal/adapters/payment_providers/cash_provider.go` — instant completion, no external call
+- [x] `internal/adapters/payment_providers/momo_mock_provider.go` — simulates async MoMo (MTN/Vodafone/AirtelTigo), auto-completes on verify
 
-### 6.3 Service Layer
-- [ ] `internal/ports/services/payment_service.go` — interface
-- [ ] `internal/services/payment_service.go`
-- [ ] `internal/adapters/payment_providers/momo_provider.go` — mock stub
+### 6.3 Repository Layer
+- [x] `internal/ports/repositories/payment_repository.go` — interface
+- [x] `internal/adapters/repositories/postgres/payment_repo.go` — with transactional Complete (updates payment + ticket to paid), stats, receipt with multi-table join
 
-### 6.4 Handler
-- [ ] `internal/adapters/handlers/payment_handler.go` — 7 endpoints per `03_payments_api.yaml`
+### 6.4 Service Layer
+- [x] `internal/ports/services/payment_service.go` — interface + InitiatePaymentRequest, RecordCashRequest, VerifyPaymentRequest, result types
+- [x] `internal/services/payment_service.go` — provider delegation via registry, ticket eligibility check, duplicate payment protection
 
-### 6.5 Build & Verify
-- [ ] Cash payment immediately completes + updates ticket to paid
-- [ ] Mock digital initiate/verify works
-- [ ] Receipt generated, payment stats aggregate by status/method
+### 6.5 Handler & Routes
+- [x] `internal/adapters/handlers/payment_handler.go` — 7 endpoints per `03_payments_api.yaml`
+- [x] Router wired with RBAC (initiate/cash=admin+super_admin+accountant, read/verify=any auth)
+
+### 6.6 Build & Verify
+- [x] Cash payment immediately completes + updates ticket to paid (GHS 400, RCP-2026-0000001)
+- [x] Mock MoMo digital: initiate returns USSD code, verify auto-completes (GHS 800, RCP-2026-0000002)
+- [x] Receipt generated with ticket details, officer, station
+- [x] Payment stats aggregate by status/method + time-period breakdowns (today/week/month)
+- [x] List with filters (method, status, date range, amount range)
+- [x] Ticket status auto-updated to "paid" after payment completion
+- [x] Duplicate payment protection (409 CONFLICT if pending/completed exists)
 
 ---
 
