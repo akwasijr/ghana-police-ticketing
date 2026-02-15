@@ -41,7 +41,7 @@ export interface AuditLog {
   timestamp: string;
   
   // Who
-  userId: string;
+  userId?: string;
   userName: string;
   userRole: string;
   userBadgeNumber?: string;
@@ -49,14 +49,14 @@ export interface AuditLog {
   // What
   action: AuditAction;
   entityType: AuditEntityType;
-  entityId: string;
+  entityId?: string;
   entityName?: string;
   
   // Details
   description: string;
-  oldValue?: Record<string, any>;
-  newValue?: Record<string, any>;
-  metadata?: Record<string, any>;
+  oldValue?: string;
+  newValue?: string;
+  metadata?: string;
   
   // Context
   ipAddress?: string;
@@ -90,11 +90,20 @@ export interface AuditFilters {
 }
 
 export interface AuditStats {
-  totalActions: number;
-  actionsByType: Record<AuditAction, number>;
-  actionsByEntity: Record<AuditEntityType, number>;
-  recentActivity: AuditLog[];
-  topUsers: Array<{ userId: string; userName: string; actionCount: number }>;
+  totalEntries: number;
+  byAction: Record<string, number>;
+  byEntityType: Record<string, number>;
+  bySeverity: { info: number; warning: number; critical: number };
+  byUser: Array<{ userId: string; userName: string; count: number }>;
+  recentCritical: Array<{
+    id: string;
+    timestamp: string;
+    action: string;
+    entityType: string;
+    description: string;
+    userName: string;
+    severity: string;
+  }>;
 }
 
 export interface CreateAuditLogInput {

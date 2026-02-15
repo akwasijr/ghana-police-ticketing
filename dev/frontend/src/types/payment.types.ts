@@ -27,20 +27,11 @@ export interface Payment {
   
   // Method
   method: PaymentMethod;
-  methodName: string;
-  
+
   // Mobile Money specific
   phoneNumber?: string;
   network?: string;
   transactionId?: string;
-  
-  // Card specific
-  cardLast4?: string;
-  cardBrand?: string;
-  
-  // Bank specific
-  bankName?: string;
-  accountNumber?: string;
   
   // Status
   status: PaymentStatus;
@@ -58,7 +49,6 @@ export interface Payment {
   
   // Receipt
   receiptNumber?: string;
-  receiptUrl?: string;
   
   // Processed by (for cash payments)
   processedById?: string;
@@ -89,7 +79,7 @@ export interface InitiatePaymentResponse {
   instructions?: string;
   
   // Timeout
-  expiresAt: string;
+  expiresAt?: string;
 }
 
 // Payment verification
@@ -134,14 +124,9 @@ export interface PaymentStats {
   totalPayments: number;
   totalAmount: number;
   
-  byStatus: {
-    pending: number;
-    completed: number;
-    failed: number;
-    refunded: number;
-  };
+  byStatus: Record<string, number>;
   
-  byMethod: Record<PaymentMethod, {
+  byMethod: Record<string, {
     count: number;
     amount: number;
   }>;
@@ -194,6 +179,6 @@ export interface PaymentReceipt {
   method: string;
   transactionId?: string;
   paidAt: string;
-  issuedBy: string;
+  processedBy?: string;
   stationName: string;
 }

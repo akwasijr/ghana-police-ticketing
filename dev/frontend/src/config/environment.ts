@@ -10,7 +10,7 @@ export const ENV = {
   USE_MOCK_DATA: import.meta.env.VITE_USE_MOCK !== 'false',
   
   // API Configuration
-  API_BASE_URL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
+  API_BASE_URL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api',
   API_TIMEOUT: Number(import.meta.env.VITE_API_TIMEOUT ?? 30000),
   
   // Feature flags
@@ -25,7 +25,7 @@ export const ENV = {
 };
 
 // Helper to check if we should use mock data
-export const shouldUseMock = () => ENV.USE_MOCK_DATA || ENV.IS_DEV;
+export const shouldUseMock = () => ENV.USE_MOCK_DATA;
 
 // Log configuration in development
 if (ENV.IS_DEV) {

@@ -2,8 +2,8 @@ export interface Offence {
   id: string;
   code: string; // e.g., "SPD-001", "RLV-002"
   name: string; // e.g., "Speeding", "Red Light Violation"
-  description: string;
-  legalBasis: string; // e.g., "Road Traffic Act 2004, Section 15(2)"
+  description?: string;
+  legalBasis?: string;
   category: OffenceCategory;
   defaultFine: number; // Fine amount in GH₵
   minFine: number;
@@ -22,6 +22,7 @@ export type OffenceCategory =
   | 'parking'
   | 'dangerous_driving'
   | 'licensing'
+  | 'obstruction'
   | 'other';
 
 export const OFFENCE_CATEGORIES: { value: OffenceCategory; label: string }[] = [
@@ -32,6 +33,7 @@ export const OFFENCE_CATEGORIES: { value: OffenceCategory; label: string }[] = [
   { value: 'parking', label: 'Parking Violations' },
   { value: 'dangerous_driving', label: 'Dangerous Driving' },
   { value: 'licensing', label: 'Licensing Offences' },
+  { value: 'obstruction', label: 'Obstruction' },
   { value: 'other', label: 'Other Offences' },
 ];
 

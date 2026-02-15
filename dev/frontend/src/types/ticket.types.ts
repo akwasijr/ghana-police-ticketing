@@ -32,11 +32,11 @@ export interface GeoLocation {
 
 export interface TicketPhoto {
   id: string;
-  uri: string; // Local URI or base64
+  url: string;
   type: 'vehicle' | 'plate' | 'evidence' | 'other';
   timestamp: string;
-  uploaded: boolean;
-  remoteUrl?: string;
+  thumbnailUrl?: string;
+  uploaded?: boolean; // local-only tracking
 }
 
 export interface TicketNote {
@@ -44,9 +44,7 @@ export interface TicketNote {
   content: string;
   officerId: string;
   officerName: string;
-  officerEmail?: string;
   timestamp: string;
-  images?: TicketPhoto[];
   edited?: boolean;
   editedAt?: string;
 }
@@ -59,7 +57,6 @@ export interface VehicleInfo {
   type: VehicleType;
   ownerName?: string;
   ownerPhone?: string;
-  ownerAddress?: string;
 }
 
 export type VehicleType = 

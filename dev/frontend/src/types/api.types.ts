@@ -94,11 +94,17 @@ export interface CreateTicketRequest {
     model?: string;
     color?: string;
     type: string;
+    ownerName?: string;
+    ownerPhone?: string;
   };
   driver?: {
-    name: string;
+    firstName: string;
+    lastName: string;
     phone?: string;
     licenseNumber?: string;
+    address?: string;
+    idType?: string;
+    idNumber?: string;
   };
   offences: Array<{
     id: string;
@@ -112,7 +118,7 @@ export interface CreateTicketRequest {
     landmark?: string;
   };
   notes?: string;
-  photos?: string[]; // Photo IDs or URLs
+  clientCreatedId?: string;
 }
 
 export interface CreateTicketResponse {
@@ -199,10 +205,9 @@ export interface SyncResponse {
 export interface FileObjectionRequest {
   ticketId: string;
   reason: string;
-  details: string;
+  details?: string;
   contactPhone: string;
   contactEmail?: string;
-  supportingDocuments?: string[]; // Document IDs
 }
 
 export interface FileObjectionResponse {
@@ -214,9 +219,8 @@ export interface FileObjectionResponse {
 }
 
 export interface ProcessObjectionRequest {
-  objectionId: string;
-  decision: 'approved' | 'rejected';
-  reason: string;
+  decision: string;
+  reviewNotes: string;
   adjustedFine?: number;
 }
 

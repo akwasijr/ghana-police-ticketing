@@ -10,16 +10,19 @@ export interface Objection {
   
   // Reason and evidence
   reason: string;
+  details?: string;
   evidence?: string;
   attachments?: ObjectionAttachment[];
-  
+
   // Status tracking
   status: ObjectionStatus;
   submittedAt: string;
+  reviewDeadline?: string;
   reviewedAt?: string;
   reviewedBy?: string;
   reviewedById?: string;
   reviewNotes?: string;
+  adjustedFine?: number;
   
   // Driver info
   driverName: string;
@@ -66,7 +69,7 @@ export interface ObjectionStats {
   approved: number;
   rejected: number;
   approvalRate: number;
-  avgResolutionTime: number; // in hours
+  avgResolutionTimeHours: number;
 }
 
 export interface ObjectionReviewInput {
