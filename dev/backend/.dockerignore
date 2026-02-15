@@ -1,0 +1,6 @@
+deployments/.env
+.git
+*.md
+agent_info
+tmp
+uploads
