@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  Car, 
-  User, 
-  AlertTriangle, 
-  Wifi, 
+import {
+  Search,
+  Car,
+  User,
+  AlertTriangle,
+  Wifi,
   WifiOff,
   Clock,
   Ban,
@@ -15,7 +15,7 @@ import {
   Printer
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { useAuthStore, useIsOnline, usePendingCount } from '@/store';
+import { useAuthStore, useIsOnline, usePendingCount, useTicketStore } from '@/store';
 import { formatCurrency } from '@/lib/utils/formatting';
 import { printTicket } from '@/lib/utils/print';
 import { cn } from '@/lib/utils';
@@ -23,87 +23,7 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { TicketReceipt, TicketListItem } from '@/components/shared';
 
 
-// Demo lookup data
-const DEMO_VEHICLES: Record<string, {
-  registration: string;
-  type: string;
-  color: string;
-  make: string;
-  owner: string;
-  offenses: Array<{ id: string; date: string; offense: string; fine: number; status: 'paid' | 'unpaid' | 'overdue' }>;
-}> = {
-  'GR-1234-24': {
-    registration: 'GR-1234-24',
-    type: 'Saloon Car',
-    color: 'Silver',
-    make: 'Toyota Corolla',
-    owner: 'Kwame Mensah',
-    offenses: [
-      { id: 'GPS-2025-0892', date: '2025-12-15', offense: 'Speeding', fine: 200, status: 'unpaid' },
-      { id: 'GPS-2025-0456', date: '2025-10-03', offense: 'No Seatbelt', fine: 50, status: 'paid' },
-    ]
-  },
-  'AS-5678-23': {
-    registration: 'AS-5678-23',
-    type: 'SUV',
-    color: 'Black',
-    make: 'Honda CR-V',
-    owner: 'Ama Asante',
-    offenses: [
-      { id: 'GPS-2025-0234', date: '2025-11-20', offense: 'Illegal Parking', fine: 80, status: 'overdue' },
-      { id: 'GPS-2025-0112', date: '2025-09-15', offense: 'Red Light Violation', fine: 150, status: 'overdue' },
-      { id: 'GPS-2024-0891', date: '2024-12-01', offense: 'Phone While Driving', fine: 200, status: 'paid' },
-    ]
-  }
-};
-
-const DEMO_DRIVERS: Record<string, {
-  name: string;
-  license: string;
-  phone: string;
-  offenses: Array<{ id: string; date: string; offense: string; vehicle: string; fine: number; status: 'paid' | 'unpaid' | 'overdue' }>;
-}> = {
-  'DL-123456': {
-    name: 'Kwame Mensah',
-    license: 'DL-123456',
-    phone: '024 123 4567',
-    offenses: [
-      { id: 'GPS-2025-0892', date: '2025-12-15', offense: 'Speeding', vehicle: 'GR-1234-24', fine: 200, status: 'unpaid' },
-    ]
-  },
-  'GHA-123456789-0': {
-    name: 'Kofi Owusu',
-    license: 'GHA-123456789-0',
-    phone: '020 987 6543',
-    offenses: [
-      { id: 'GPS-2025-0567', date: '2025-11-28', offense: 'Wrong Lane', vehicle: 'GT-9012-24', fine: 120, status: 'overdue' },
-      { id: 'GPS-2025-0321', date: '2025-08-10', offense: 'Speeding', vehicle: 'GT-9012-24', fine: 200, status: 'overdue' },
-    ]
-  }
-};
-
 type LookupType = 'vehicle' | 'driver' | null;
-type TicketStatusType = 'paid' | 'unpaid' | 'overdue';
-
-// Recent tickets data
-const RECENT_TICKETS: Array<{
-  id: string;
-  vehicle: string;
-  vehicleType: string;
-  vehicleColor: string;
-  driver: string;
-  driverId: string;
-  offense: string;
-  amount: number;
-  status: TicketStatusType;
-  time: string;
-  date: string;
-  location: string;
-}> = [
-  { id: 'GPS-2026-001', vehicle: 'GR-1234-24', vehicleType: 'Toyota Corolla', vehicleColor: 'Silver', driver: 'Kwame Mensah', driverId: 'DL-123456', offense: 'Speeding', amount: 200, status: 'paid', time: '10:30 AM', date: '2026-01-02', location: 'Ring Road Central, Accra' },
-  { id: 'GPS-2026-002', vehicle: 'AS-5678-23', vehicleType: 'Honda CR-V', vehicleColor: 'Black', driver: 'Ama Asante', driverId: 'DL-789012', offense: 'No Seatbelt', amount: 50, status: 'unpaid', time: '09:15 AM', date: '2026-01-02', location: 'Liberation Road, Accra' },
-  { id: 'GPS-2026-003', vehicle: 'GT-9012-24', vehicleType: 'Mercedes E-Class', vehicleColor: 'White', driver: 'Kofi Owusu', driverId: 'DL-345678', offense: 'Illegal Parking', amount: 80, status: 'overdue', time: '08:45 AM', date: '2026-01-02', location: 'Oxford Street, Osu' },
-];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -111,14 +31,34 @@ export function HomePage() {
   const isOnline = useIsOnline();
   const pendingCount = usePendingCount();
   const printer = usePrinter();
+  const { tickets: storeTickets } = useTicketStore();
+  const fetchTickets = useTicketStore((state) => state.fetchTickets);
 
+  useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+  const recentTickets = useMemo(() => {
+    return storeTickets.slice(0, 3).map(t => ({
+      id: t.ticketNumber,
+      vehicle: t.vehicleReg,
+      vehicleType: '',
+      vehicleColor: '',
+      driver: t.officerName || 'Driver',
+      driverId: 'N/A',
+      offense: `${t.offenceCount} offence${t.offenceCount > 1 ? 's' : ''}`,
+      amount: t.totalFine,
+      status: (t.status === 'paid' ? 'paid' : t.status === 'overdue' ? 'overdue' : 'unpaid') as 'paid' | 'unpaid' | 'overdue',
+      time: new Date(t.issuedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date(t.issuedAt).toISOString().split('T')[0],
+      location: t.stationName || 'Unknown location',
+    }));
+  }, [storeTickets]);
 
   const [lookupType, setLookupType] = useState<LookupType>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [noResults, setNoResults] = useState(false);
-  const [selectedTicket, setSelectedTicket] = useState<typeof RECENT_TICKETS[0] | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<typeof recentTickets[0] | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
   // Generate QR code when ticket is selected
@@ -138,7 +78,7 @@ export function HomePage() {
   const firstName = user?.firstName || 'Officer';
 
   // Print ticket receipt using shared utility
-  const handlePrint = async (ticket: typeof RECENT_TICKETS[0]) => {
+  const handlePrint = async (ticket: typeof recentTickets[0]) => {
     const ticketData = {
       ticketNumber: ticket.id,
       date: new Date(ticket.date).toLocaleDateString('en-GB'),
@@ -196,30 +136,13 @@ export function HomePage() {
 
   const handleSearch = () => {
     if (!searchQuery.trim()) return;
-    
     setIsSearching(true);
     setNoResults(false);
     setSearchResult(null);
-    
-    // Simulate API call
+
+    // TODO: Wire up to lookup API
     setTimeout(() => {
-      const query = searchQuery.toUpperCase().replace(/\s/g, '');
-      
-      if (lookupType === 'vehicle') {
-        const result = Object.values(DEMO_VEHICLES).find(v => 
-          v.registration.replace(/-/g, '').includes(query.replace(/-/g, ''))
-        );
-        setSearchResult(result || null);
-        setNoResults(!result);
-      } else {
-        const result = Object.values(DEMO_DRIVERS).find(d => 
-          d.license.replace(/-/g, '').includes(query.replace(/-/g, '')) ||
-          d.name.toUpperCase().includes(query)
-        );
-        setSearchResult(result || null);
-        setNoResults(!result);
-      }
-      
+      setNoResults(true);
       setIsSearching(false);
     }, 500);
   };
@@ -538,7 +461,7 @@ export function HomePage() {
               </button>
             </div>
             <div className="space-y-3">
-              {RECENT_TICKETS.map((ticket) => (
+              {recentTickets.map((ticket) => (
                 <TicketListItem
                   key={ticket.id}
                   ticket={ticket}

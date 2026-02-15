@@ -18,95 +18,6 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { TicketReceipt, TicketListItem } from '@/components/shared';
 import type { TicketListItem as TicketListItemType } from '@/types/ticket.types';
 
-
-// Demo ticket data (fallback if store is empty)
-const DEMO_TICKETS = [
-  { 
-    id: 'GPS-2026-0012', 
-    vehicle: 'GR-1234-24', 
-    vehicleType: 'Toyota Corolla',
-    vehicleColor: 'Silver',
-    driver: 'Kwame Mensah',
-    driverId: 'DL-123456',
-    offense: 'Speeding', 
-    amount: 200, 
-    status: 'paid' as const, 
-    date: '2026-01-02',
-    time: '10:30 AM',
-    location: 'Ring Road Central, Accra',
-  },
-  { 
-    id: 'GPS-2026-0011', 
-    vehicle: 'AS-5678-23', 
-    vehicleType: 'Honda CR-V',
-    vehicleColor: 'Black',
-    driver: 'Ama Asante',
-    driverId: 'DL-789012',
-    offense: 'No Seatbelt', 
-    amount: 50, 
-    status: 'unpaid' as const, 
-    date: '2026-01-02',
-    time: '09:15 AM',
-    location: 'Liberation Road, Accra',
-  },
-  { 
-    id: 'GPS-2026-0010', 
-    vehicle: 'GT-9012-24', 
-    vehicleType: 'Mercedes E-Class',
-    vehicleColor: 'White',
-    driver: 'Kofi Owusu',
-    driverId: 'DL-345678',
-    offense: 'Illegal Parking', 
-    amount: 80, 
-    status: 'unpaid' as const, 
-    date: '2026-01-02',
-    time: '08:45 AM',
-    location: 'Oxford Street, Osu',
-  },
-  { 
-    id: 'GPS-2026-0009', 
-    vehicle: 'GN-3456-25', 
-    vehicleType: 'Hyundai Tucson',
-    vehicleColor: 'Blue',
-    driver: 'Yaw Boateng',
-    driverId: 'DL-901234',
-    offense: 'Red Light Violation', 
-    amount: 150, 
-    status: 'paid' as const, 
-    date: '2026-01-01',
-    time: '04:20 PM',
-    location: 'Kwame Nkrumah Circle',
-  },
-  { 
-    id: 'GPS-2026-0008', 
-    vehicle: 'GW-7890-24', 
-    vehicleType: 'Kia Sportage',
-    vehicleColor: 'Red',
-    driver: 'Efua Mensah',
-    driverId: 'DL-567890',
-    offense: 'Phone While Driving', 
-    amount: 200, 
-    status: 'overdue' as const, 
-    date: '2025-12-28',
-    time: '11:45 AM',
-    location: 'Spintex Road',
-  },
-  { 
-    id: 'GPS-2026-0007', 
-    vehicle: 'GR-2345-23', 
-    vehicleType: 'Nissan Patrol',
-    vehicleColor: 'Grey',
-    driver: 'Akua Sarpong',
-    driverId: 'DL-234567',
-    offense: 'Wrong Lane', 
-    amount: 120, 
-    status: 'paid' as const, 
-    date: '2025-12-27',
-    time: '02:30 PM',
-    location: 'George Walker Bush Hwy',
-  },
-];
-
 // Convert store tickets to display format
 interface DisplayTicket {
   id: string;
@@ -127,29 +38,31 @@ export function HistoryPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { tickets: storeTickets } = useTicketStore();
+  const fetchTickets = useTicketStore((state) => state.fetchTickets);
   const printer = usePrinter();
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
   const [selectedTicket, setSelectedTicket] = useState<DisplayTicket | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid' | 'overdue'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'amount'>('newest');
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
-  // Convert store tickets to display format and merge with demo data
+  // Convert store tickets to display format
   const allTickets: DisplayTicket[] = useMemo(() => {
-    const convertedStoreTickets: DisplayTicket[] = storeTickets.map((t: TicketListItemType) => {
+    return storeTickets.map((t: TicketListItemType) => {
       const issuedDate = new Date(t.issuedAt);
       const dueDate = new Date(t.dueDate);
       const now = new Date();
-      
-      // Determine status
+
       let displayStatus: 'paid' | 'unpaid' | 'overdue' = 'unpaid';
       if (t.status === 'paid') {
         displayStatus = 'paid';
       } else if (t.status === 'overdue' || (t.status === 'unpaid' && dueDate < now)) {
         displayStatus = 'overdue';
       }
-      
+
       return {
         id: t.ticketNumber,
         vehicle: t.vehicleReg,
@@ -165,12 +78,6 @@ export function HistoryPage() {
         location: t.stationName || 'Unknown location',
       };
     });
-    
-    // Return store tickets first, then demo if store is empty
-    if (convertedStoreTickets.length > 0) {
-      return [...convertedStoreTickets, ...DEMO_TICKETS];
-    }
-    return DEMO_TICKETS;
   }, [storeTickets]);
 
   // Generate QR code when ticket is selected

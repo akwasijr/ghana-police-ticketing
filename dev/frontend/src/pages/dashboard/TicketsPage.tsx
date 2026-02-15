@@ -1,20 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Eye, FileText, CreditCard, Clock, AlertTriangle, XCircle, MapPin, User, Car, Camera, FileCheck, Bell, Edit, Plus, Image as ImageIcon, Mail } from 'lucide-react';
 import { useTicketStore } from '@/store/ticket.store';
-import { useJurisdiction } from '@/store/auth.store';
 import { useToast } from '@/store/ui.store';
 import { formatCurrency } from '@/lib/utils/formatting';
 import { cn } from '@/lib/utils';
-import { matchesJurisdiction } from '@/lib/demo/jurisdiction';
+import { ticketsAPI } from '@/lib/api/tickets.api';
 import { Tabs } from '@/components/ui';
 import { DataTable, ConfirmDialog, ActionButton, Modal, FilterBar, PageHeader, type Column } from '@/components/shared';
-import { MOCK_FULL_TICKETS } from '@/lib/mock-data';
 import type { TicketListItem } from '@/types';
 
 export function TicketsPage() {
   const tickets = useTicketStore((state) => state.tickets);
-  const jurisdiction = useJurisdiction();
+  const fetchTickets = useTicketStore((state) => state.fetchTickets);
   const toast = useToast();
+
+  useEffect(() => { fetchTickets(); }, [fetchTickets]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -28,6 +28,16 @@ export function TicketsPage() {
   const [newNoteContent, setNewNoteContent] = useState('');
   const [newNoteImages, setNewNoteImages] = useState<string[]>([]);
   const updateTicketInList = useTicketStore((state) => state.updateTicketInList);
+  const [fullTicket, setFullTicket] = useState<any>(null);
+
+  // When selectedTicketId changes, fetch the full ticket
+  useEffect(() => {
+    if (selectedTicketId) {
+      ticketsAPI.getById(selectedTicketId).then(setFullTicket).catch(() => setFullTicket(null));
+    } else {
+      setFullTicket(null);
+    }
+  }, [selectedTicketId]);
 
   const handleSendReminder = () => {
     if (!selectedTicket) return;
@@ -111,9 +121,7 @@ export function TicketsPage() {
   };
 
   const filteredTickets = tickets.filter(ticket => {
-    if (!matchesJurisdiction(jurisdiction, ticket)) return false;
-
-    const matchesSearch = 
+    const matchesSearch =
       ticket.ticketNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ticket.vehicleReg.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ticket.officerName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -190,7 +198,7 @@ export function TicketsPage() {
     }
   ], [statusColors]);
 
-  const selectedTicket = MOCK_FULL_TICKETS.find(t => t.id === selectedTicketId);
+  const selectedTicket = fullTicket;
 
   // Detail View
   if (selectedTicketId && selectedTicket) {

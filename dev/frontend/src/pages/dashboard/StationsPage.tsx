@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Building2, 
   Search, 
@@ -13,10 +13,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Icon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { cn } from '@/lib/utils';
-import { useJurisdiction } from '@/store/auth.store';
 import { useToast } from '@/store/ui.store';
-import { MOCK_STATIONS, MOCK_REGIONS, MOCK_DIVISIONS, MOCK_DISTRICTS } from '@/lib/mock-data';
-import { matchesJurisdiction } from '@/lib/demo/jurisdiction';
+import { useStationStore } from '@/store/station.store';
 
 // Fix for default marker icon
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -39,8 +37,22 @@ export function StationsPage() {
   const [view, setView] = useState<'list' | 'map'>('list');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const jurisdiction = useJurisdiction();
+  const stations = useStationStore((state) => state.stations);
+  const regions = useStationStore((state) => state.regions);
+  const divisions = useStationStore((state) => state.divisions);
+  const districts = useStationStore((state) => state.districts);
+  const fetchStations = useStationStore((state) => state.fetchStations);
+  const fetchRegions = useStationStore((state) => state.fetchRegions);
+  const fetchDivisions = useStationStore((state) => state.fetchDivisions);
+  const fetchDistricts = useStationStore((state) => state.fetchDistricts);
   const toast = useToast();
+
+  useEffect(() => {
+    fetchStations();
+    fetchRegions();
+    fetchDivisions();
+    fetchDistricts();
+  }, [fetchStations, fetchRegions, fetchDivisions, fetchDistricts]);
 
   // Form state for add modal
   const [formData, setFormData] = useState({
@@ -74,20 +86,20 @@ export function StationsPage() {
   };
 
   // Cascading filter logic
-  const scopedStations = MOCK_STATIONS.filter((s) => matchesJurisdiction(jurisdiction, s));
-  
+  const scopedStations = stations;
+
   // Get available options based on current selections
-  const availableRegions = useMemo(() => MOCK_REGIONS, []);
-  
+  const availableRegions = regions;
+
   const availableDivisions = useMemo(() => {
-    if (regionFilter === 'all') return MOCK_DIVISIONS;
-    return MOCK_DIVISIONS.filter(d => d.regionId === regionFilter);
-  }, [regionFilter]);
-  
+    if (regionFilter === 'all') return divisions;
+    return divisions.filter(d => d.regionId === regionFilter);
+  }, [regionFilter, divisions]);
+
   const availableDistricts = useMemo(() => {
-    if (divisionFilter === 'all') return MOCK_DISTRICTS;
-    return MOCK_DISTRICTS.filter(d => d.divisionId === divisionFilter);
-  }, [divisionFilter]);
+    if (divisionFilter === 'all') return districts;
+    return districts.filter(d => d.divisionId === divisionFilter);
+  }, [divisionFilter, districts]);
 
   // Reset dependent filters when parent changes
   const handleRegionChange = (value: string) => {
@@ -108,13 +120,13 @@ export function StationsPage() {
     const matchesRegion = regionFilter === 'all' || station.regionId === regionFilter;
     const matchesDivision = divisionFilter === 'all' || station.divisionId === divisionFilter;
     const matchesDistrict = districtFilter === 'all' || station.districtId === districtFilter;
-    const matchesStatus = statusFilter === 'all' || (station.isActive ? 'active' : 'inactive') === statusFilter;
+    const matchesStatus = statusFilter === 'all' || station.status === statusFilter;
     return matchesSearch && matchesRegion && matchesDivision && matchesDistrict && matchesStatus;
   });
 
   const totalStations = scopedStations.length;
-  const activeStations = scopedStations.filter((s) => s.isActive).length;
-  const inactiveStations = scopedStations.filter((s) => !s.isActive).length;
+  const activeStations = scopedStations.filter((s) => s.status === 'active').length;
+  const inactiveStations = scopedStations.filter((s) => s.status !== 'active').length;
 
   return (
     <div className="space-y-4">
@@ -193,7 +205,7 @@ export function StationsPage() {
                   className="w-full h-9 px-3 text-sm border border-gray-200 focus:outline-none focus:border-[#1A1F3A] bg-white"
                 >
                   <option value="">Select Division</option>
-                  {MOCK_DIVISIONS.filter(d => !formData.regionId || d.regionId === formData.regionId).map((d) => (
+                  {divisions.filter(d => !formData.regionId || d.regionId === formData.regionId).map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -206,7 +218,7 @@ export function StationsPage() {
                   className="w-full h-9 px-3 text-sm border border-gray-200 focus:outline-none focus:border-[#1A1F3A] bg-white"
                 >
                   <option value="">Select District</option>
-                  {MOCK_DISTRICTS.filter(d => !formData.divisionId || d.divisionId === formData.divisionId).map((d) => (
+                  {districts.filter(d => !formData.divisionId || d.divisionId === formData.divisionId).map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -458,7 +470,7 @@ export function StationsPage() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               {filteredStations.map((station) => (
-                <Marker key={station.id} position={[station.latitude!, station.longitude!]}>
+                <Marker key={station.id} position={[station.lat, station.lng]}>
                   <Popup>
                     <div className="p-1">
                       <h3 className="font-semibold text-gray-900 text-sm">{station.name}</h3>
@@ -514,9 +526,9 @@ export function StationsPage() {
                 <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
                   <span className={cn(
                     "px-1.5 py-0.5 text-[10px] font-medium capitalize",
-                    station.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                    station.status === 'active' ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
                   )}>
-                    {station.isActive ? 'Active' : 'Inactive'}
+                    {station.status === 'active' ? 'Active' : 'Inactive'}
                   </span>
                   <button className="text-xs font-medium text-[#1A1F3A] hover:underline">
                     View

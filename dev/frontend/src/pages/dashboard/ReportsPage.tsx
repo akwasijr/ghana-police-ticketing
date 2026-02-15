@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -18,9 +18,8 @@ import {
 import { jsPDF } from 'jspdf';
 import { useTicketStore } from '@/store/ticket.store';
 import { useOfficerStore } from '@/store/officer.store';
-import { useJurisdiction } from '@/store/auth.store';
 import { useToast } from '@/store/ui.store';
-import { DEMO_STATIONS, matchesJurisdiction } from '@/lib/demo/jurisdiction';
+import { useStationStore } from '@/store/station.store';
 import { KpiCard, PageHeader } from '@/components/shared';
 import { RevenueBarChart, StatusPieChart, TrendLineChart, ComparisonBarChart } from '@/components/charts';
 import { Tabs } from '@/components/ui';
@@ -39,40 +38,32 @@ type TabId = 'overview' | 'revenue' | 'performance' | 'trends';
 export function ReportsPage() {
   const tickets = useTicketStore((state) => state.tickets);
   const officers = useOfficerStore((state) => state.officers);
-  const jurisdiction = useJurisdiction();
   const toast = useToast();
+
+  const stations = useStationStore((state) => state.stations);
+  const fetchStations = useStationStore((state) => state.fetchStations);
+  useEffect(() => { fetchStations(); }, [fetchStations]);
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
-  // Filter tickets by jurisdiction and date range
+  // Filter tickets by date range
   const scopedTickets = useMemo(() => {
     const start = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
     const end = dateTo ? new Date(`${dateTo}T23:59:59`) : null;
 
     return tickets.filter((t) => {
-      if (!matchesJurisdiction(jurisdiction, t)) return false;
       const issuedAt = new Date(t.issuedAt);
       if (start && issuedAt < start) return false;
       if (end && issuedAt > end) return false;
       return true;
     });
-  }, [tickets, jurisdiction, dateFrom, dateTo]);
+  }, [tickets, dateFrom, dateTo]);
 
-  const scopedOfficers = useMemo(() => {
-    return officers.filter((o) =>
-      matchesJurisdiction(jurisdiction, {
-        stationId: o.stationId,
-        stationName: o.stationName,
-        regionId: o.regionId,
-      })
-    );
-  }, [officers, jurisdiction]);
+  const scopedOfficers = officers;
 
-  const scopedStations = useMemo(() => {
-    return DEMO_STATIONS.filter((s) => matchesJurisdiction(jurisdiction, s));
-  }, [jurisdiction]);
+  const scopedStations = stations;
 
   // Calculate KPIs
   const kpis = useMemo(() => {

@@ -1,12 +1,16 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { Officer } from '@/types/officer.types';
+import { officersAPI } from '@/lib/api/officers.api';
 
 interface OfficerState {
   officers: Officer[];
   isLoading: boolean;
   error: string | null;
-  
+
+  // API actions
+  fetchOfficers: () => Promise<void>;
+
   setOfficers: (officers: Officer[]) => void;
   addOfficer: (officer: Officer) => void;
   updateOfficer: (id: string, updates: Partial<Officer>) => void;
@@ -19,7 +23,17 @@ export const useOfficerStore = create<OfficerState>((set, get) => ({
   officers: [],
   isLoading: false,
   error: null,
-  
+
+  fetchOfficers: async () => {
+    set({ isLoading: true });
+    try {
+      const response = await officersAPI.list();
+      set({ officers: response.items, isLoading: false, error: null });
+    } catch {
+      set({ isLoading: false });
+    }
+  },
+
   setOfficers: (officers) => set({ officers }),
   addOfficer: (officer) => set((state) => ({ officers: [officer, ...state.officers] })),
   updateOfficer: (id, updates) => set((state) => ({

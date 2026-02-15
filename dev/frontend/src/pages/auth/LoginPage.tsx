@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, ArrowLeft, Smartphone, LayoutDashboard, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/store';
+import { authAPI } from '@/lib/api/auth.api';
 import logoWhite from '@/assets/logo-white.svg';
 
 type AppType = 'pda' | 'admin' | 'super-admin';
@@ -122,7 +123,75 @@ export function LoginPage() {
     setError('');
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
+      // Try real API login
+      const response = await authAPI.login({ badgeNumber, password });
+      const apiUser = response.user;
+      const role = apiUser.role as 'officer' | 'admin' | 'super_admin';
+
+      setSession({
+        user: {
+          id: apiUser.id,
+          firstName: apiUser.firstName,
+          lastName: apiUser.lastName,
+          fullName: `${apiUser.firstName} ${apiUser.lastName}`,
+          email: apiUser.email,
+          phone: '',
+          role,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          ...(apiUser.officer ? {
+            officer: {
+              id: apiUser.officer.id,
+              firstName: apiUser.firstName,
+              lastName: apiUser.lastName,
+              fullName: `${apiUser.firstName} ${apiUser.lastName}`,
+              email: apiUser.email,
+              phone: '',
+              badgeNumber: apiUser.officer.badgeNumber,
+              rank: apiUser.officer.rank as any,
+              rankDisplay: apiUser.officer.rank,
+              stationId: apiUser.officer.station.id,
+              station: {
+                id: apiUser.officer.station.id,
+                name: apiUser.officer.station.name,
+                code: apiUser.officer.station.code,
+                address: '',
+                phone: '',
+                regionId: '',
+                regionName: '',
+                divisionId: '',
+                divisionName: '',
+                districtId: '',
+                districtName: '',
+                isActive: true,
+              },
+              regionId: '',
+              role: 'officer' as const,
+              isActive: true,
+              createdAt: new Date().toISOString(),
+            },
+          } : {}),
+        } as any,
+        tokens: {
+          accessToken: response.tokens.accessToken,
+          refreshToken: response.tokens.refreshToken,
+          expiresAt: new Date(Date.now() + response.tokens.expiresIn * 1000).toISOString(),
+        },
+        isAuthenticated: true,
+        interfaceMode: role === 'officer' ? 'handheld' : 'dashboard',
+      });
+
+      // Navigate based on role
+      if (role === 'officer') {
+        navigate('/handheld');
+      } else if (role === 'super_admin') {
+        navigate('/super-admin');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch {
+      // Fall back to demo credentials
       if (
         badgeNumber === demoAccount.credentials.badge &&
         password === demoAccount.credentials.password
@@ -132,7 +201,7 @@ export function LoginPage() {
         setError('Invalid badge number or password');
         setIsSubmitting(false);
       }
-    }, 800);
+    }
   };
 
   const performLogin = () => {

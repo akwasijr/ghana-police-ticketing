@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { settingsAPI } from '@/lib/api/settings.api';
 
 // Types
 export type Currency = 'GHS' | 'USD';
@@ -88,7 +89,7 @@ export interface AllSettings {
   userPreferences: UserPreferences;
 }
 
-// Default settings
+// Default settings (used as fallback)
 const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   systemName: 'Ghana Police Ticketing System',
   currency: 'GHS',
@@ -162,13 +163,17 @@ interface SettingsState {
   data: DataSettings;
   device: DeviceSettings;
   userPreferences: UserPreferences;
-  
+
   // Status
   isLoading: boolean;
   isSaving: boolean;
   hasUnsavedChanges: boolean;
   lastSaved: string | null;
-  
+
+  // API actions
+  fetchSettings: () => Promise<void>;
+  saveSettings: () => Promise<void>;
+
   // Actions - Update settings
   updateSystemSettings: (settings: Partial<SystemSettings>) => void;
   updateTicketSettings: (settings: Partial<TicketSettings>) => void;
@@ -177,24 +182,24 @@ interface SettingsState {
   updateDataSettings: (settings: Partial<DataSettings>) => void;
   updateDeviceSettings: (settings: Partial<DeviceSettings>) => void;
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
-  
+
   // Actions - Bulk operations
   updateAllSettings: (settings: Partial<AllSettings>) => void;
   resetToDefaults: () => void;
   resetSection: (section: keyof AllSettings) => void;
-  
+
   // Actions - Status
   setLoading: (loading: boolean) => void;
   setSaving: (saving: boolean) => void;
   markAsSaved: () => void;
-  
+
   // Getters
   getAllSettings: () => AllSettings;
   getSettingValue: <K extends keyof AllSettings, V extends keyof AllSettings[K]>(
     section: K,
     key: V
   ) => AllSettings[K][V];
-  
+
   // Helpers
   formatCurrency: (amount: number) => string;
   formatDate: (date: Date | string) => string;
@@ -203,7 +208,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      // Initial state
+      // Initial state (defaults used as fallback)
       system: DEFAULT_SYSTEM_SETTINGS,
       ticket: DEFAULT_TICKET_SETTINGS,
       notifications: DEFAULT_NOTIFICATION_SETTINGS,
@@ -211,12 +216,49 @@ export const useSettingsStore = create<SettingsState>()(
       data: DEFAULT_DATA_SETTINGS,
       device: DEFAULT_DEVICE_SETTINGS,
       userPreferences: DEFAULT_USER_PREFERENCES,
-      
+
       isLoading: false,
       isSaving: false,
       hasUnsavedChanges: false,
       lastSaved: null,
-      
+
+      // Fetch settings from API and merge with defaults
+      fetchSettings: async () => {
+        set({ isLoading: true });
+        try {
+          const apiSettings = await settingsAPI.getAll();
+          set((state) => ({
+            system: { ...DEFAULT_SYSTEM_SETTINGS, ...state.system, ...(apiSettings.system as Partial<SystemSettings> | undefined) },
+            ticket: { ...DEFAULT_TICKET_SETTINGS, ...state.ticket, ...(apiSettings.ticket as Partial<TicketSettings> | undefined) },
+            notifications: { ...DEFAULT_NOTIFICATION_SETTINGS, ...state.notifications, ...(apiSettings.notifications as Partial<NotificationSettings> | undefined) },
+            security: { ...DEFAULT_SECURITY_SETTINGS, ...state.security, ...(apiSettings.security as Partial<SecuritySettings> | undefined) },
+            data: { ...DEFAULT_DATA_SETTINGS, ...state.data, ...(apiSettings.data as Partial<DataSettings> | undefined) },
+            device: { ...DEFAULT_DEVICE_SETTINGS, ...state.device, ...(apiSettings.device as Partial<DeviceSettings> | undefined) },
+            userPreferences: { ...DEFAULT_USER_PREFERENCES, ...state.userPreferences, ...(apiSettings.userPreferences as Partial<UserPreferences> | undefined) },
+            isLoading: false,
+            hasUnsavedChanges: false,
+          }));
+        } catch {
+          set({ isLoading: false });
+        }
+      },
+
+      // Save all settings to API
+      saveSettings: async () => {
+        set({ isSaving: true });
+        try {
+          const allSettings = get().getAllSettings();
+          await settingsAPI.updateAll(allSettings as unknown as Record<string, Record<string, unknown>>);
+          set({
+            isSaving: false,
+            hasUnsavedChanges: false,
+            lastSaved: new Date().toISOString(),
+          });
+        } catch {
+          set({ isSaving: false });
+        }
+      },
+
       // Update actions
       updateSystemSettings: (settings) => {
         set((state) => ({
@@ -224,49 +266,49 @@ export const useSettingsStore = create<SettingsState>()(
           hasUnsavedChanges: true,
         }));
       },
-      
+
       updateTicketSettings: (settings) => {
         set((state) => ({
           ticket: { ...state.ticket, ...settings },
           hasUnsavedChanges: true,
         }));
       },
-      
+
       updateNotificationSettings: (settings) => {
         set((state) => ({
           notifications: { ...state.notifications, ...settings },
           hasUnsavedChanges: true,
         }));
       },
-      
+
       updateSecuritySettings: (settings) => {
         set((state) => ({
           security: { ...state.security, ...settings },
           hasUnsavedChanges: true,
         }));
       },
-      
+
       updateDataSettings: (settings) => {
         set((state) => ({
           data: { ...state.data, ...settings },
           hasUnsavedChanges: true,
         }));
       },
-      
+
       updateDeviceSettings: (settings) => {
         set((state) => ({
           device: { ...state.device, ...settings },
           hasUnsavedChanges: true,
         }));
       },
-      
+
       updateUserPreferences: (preferences) => {
         set((state) => ({
           userPreferences: { ...state.userPreferences, ...preferences },
           hasUnsavedChanges: true,
         }));
       },
-      
+
       // Bulk operations
       updateAllSettings: (settings) => {
         set((state) => ({
@@ -280,7 +322,7 @@ export const useSettingsStore = create<SettingsState>()(
           hasUnsavedChanges: true,
         }));
       },
-      
+
       resetToDefaults: () => {
         set({
           system: DEFAULT_SYSTEM_SETTINGS,
@@ -293,7 +335,7 @@ export const useSettingsStore = create<SettingsState>()(
           hasUnsavedChanges: true,
         });
       },
-      
+
       resetSection: (section) => {
         const defaults: Record<keyof AllSettings, unknown> = {
           system: DEFAULT_SYSTEM_SETTINGS,
@@ -304,24 +346,24 @@ export const useSettingsStore = create<SettingsState>()(
           device: DEFAULT_DEVICE_SETTINGS,
           userPreferences: DEFAULT_USER_PREFERENCES,
         };
-        
+
         set({
           [section]: defaults[section],
           hasUnsavedChanges: true,
         });
       },
-      
+
       // Status actions
       setLoading: (loading) => set({ isLoading: loading }),
       setSaving: (saving) => set({ isSaving: saving }),
-      
+
       markAsSaved: () => {
         set({
           hasUnsavedChanges: false,
           lastSaved: new Date().toISOString(),
         });
       },
-      
+
       // Getters
       getAllSettings: () => {
         const state = get();
@@ -335,12 +377,12 @@ export const useSettingsStore = create<SettingsState>()(
           userPreferences: state.userPreferences,
         };
       },
-      
+
       getSettingValue: <K extends keyof AllSettings, V extends keyof AllSettings[K]>(section: K, key: V) => {
         const state = get();
         return (state[section] as AllSettings[K])[key];
       },
-      
+
       // Helpers
       formatCurrency: (amount) => {
         const { currency } = get().system;
@@ -351,15 +393,15 @@ export const useSettingsStore = create<SettingsState>()(
         });
         return formatter.format(amount);
       },
-      
+
       formatDate: (date) => {
         const { dateFormat } = get().system;
         const d = typeof date === 'string' ? new Date(date) : date;
-        
+
         const day = d.getDate().toString().padStart(2, '0');
         const month = (d.getMonth() + 1).toString().padStart(2, '0');
         const year = d.getFullYear();
-        
+
         switch (dateFormat) {
           case 'DD/MM/YYYY':
             return `${day}/${month}/${year}`;

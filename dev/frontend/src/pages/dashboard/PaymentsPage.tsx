@@ -1,20 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { CreditCard, CheckCircle2, AlertCircle, Eye, ExternalLink, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTicketStore } from '@/store/ticket.store';
 import { usePaymentStore } from '@/store/payment.store';
-import { useJurisdiction } from '@/store/auth.store';
 import { useToast } from '@/store/ui.store';
-import { matchesJurisdiction } from '@/lib/demo/jurisdiction';
 import { KpiCard, DataTable, ConfirmDialog, ActionButton, FilterBar, PageHeader, type Column } from '@/components/shared';
 import { Tabs } from '@/components/ui';
-import { MOCK_PAYMENTS } from '@/lib/mock-data';
 import type { Payment } from '@/types/payment.types';
 
 export function PaymentsPage() {
   const tickets = useTicketStore((state) => state.tickets);
-  const { payments: storePayments, getPaymentStats } = usePaymentStore();
-  const jurisdiction = useJurisdiction();
+  const { payments, getPaymentStats } = usePaymentStore();
+  const fetchPayments = usePaymentStore((state) => state.fetchPayments);
+
+  useEffect(() => { fetchPayments(); }, [fetchPayments]);
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'failed'>('all');
@@ -24,21 +23,6 @@ export function PaymentsPage() {
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  // Merge store payments with demo data for display
-  const allPayments = useMemo<Payment[]>(() => {
-    // Convert store payments to display format matching Payment type
-    const storeDisplayPayments: Payment[] = storePayments.map(p => ({
-      ...p,
-      ticketNumber: p.ticketNumber || '',
-      methodName: p.methodName || p.method,
-      paymentReference: p.paymentReference || p.id,
-      payerName: p.payerName || '',
-      payerPhone: p.payerPhone || '',
-    }));
-    
-    // Use store payments if available, otherwise fall back to demo
-    return storeDisplayPayments.length > 0 ? storeDisplayPayments : MOCK_PAYMENTS;
-  }, [storePayments]);
 
   const handleSendReminder = () => {
     if (!selectedPayment) return;
@@ -63,10 +47,7 @@ export function PaymentsPage() {
 
   const ticketByNumber = new Map(tickets.map((t) => [t.ticketNumber, t]));
 
-  const filteredPayments = allPayments.filter(payment => {
-    const linkedTicket = ticketByNumber.get(payment.ticketNumber);
-    if (linkedTicket && !matchesJurisdiction(jurisdiction, linkedTicket)) return false;
-
+  const filteredPayments = payments.filter(payment => {
     const matchesSearch =
       payment.ticketNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.paymentReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -85,7 +66,7 @@ export function PaymentsPage() {
     return matchesSearch && matchesStatus && matchesMethod && matchesDate;
   });
 
-  const selectedPayment = allPayments.find(p => p.id === selectedPaymentId);
+  const selectedPayment = payments.find(p => p.id === selectedPaymentId);
 
   const paymentColumns = useMemo<Column<Payment>[]>(() => [
     {
@@ -105,13 +86,8 @@ export function PaymentsPage() {
     },
     {
       header: 'Method',
-      accessor: 'methodName',
-      render: (value, row) => (
-        <>
-          <span className="text-gray-900">{String(value)}</span>
-          <span className="text-[10px] text-gray-500 ml-1">({row.method})</span>
-        </>
-      )
+      accessor: 'method',
+      render: (value) => <span className="text-gray-900 capitalize">{String(value).replace('_', ' ')}</span>
     },
     {
       header: 'Date',
@@ -214,7 +190,7 @@ export function PaymentsPage() {
             </div>
             <div>
               <span className="text-gray-500">Method:</span>
-              <p className="text-gray-900 mt-1">{selectedPayment.methodName}</p>
+              <p className="text-gray-900 mt-1 capitalize">{selectedPayment.method.replace('_', ' ')}</p>
             </div>
             <div>
               <span className="text-gray-500">Status:</span>
@@ -254,20 +230,20 @@ export function PaymentsPage() {
       <div className="grid grid-cols-3 gap-3">
         <KpiCard
           title="Total Revenue"
-          value={`GH₵ ${(getPaymentStats().totalAmount || allPayments.filter(p => p.status === 'completed').reduce((acc, p) => acc + p.amount, 0)).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`}
+          value={`GH₵ ${(getPaymentStats().totalAmount || payments.filter(p => p.status === 'completed').reduce((acc, p) => acc + p.amount, 0)).toLocaleString('en-GH', { minimumFractionDigits: 2 })}`}
           subtitle="+12% from last month"
           icon={CreditCard}
           subtitleColor="green"
         />
         <KpiCard
           title="Successful"
-          value={(getPaymentStats().byStatus?.completed || allPayments.filter(p => p.status === 'completed').length).toString()}
+          value={(getPaymentStats().byStatus?.completed || payments.filter(p => p.status === 'completed').length).toString()}
           subtitle="98.5% success rate"
           icon={CheckCircle2}
         />
         <KpiCard
           title="Failed"
-          value={(getPaymentStats().byStatus?.failed || allPayments.filter(p => p.status === 'failed').length).toString()}
+          value={(getPaymentStats().byStatus?.failed || payments.filter(p => p.status === 'failed').length).toString()}
           subtitle="Requires attention"
           icon={AlertCircle}
           subtitleColor="red"

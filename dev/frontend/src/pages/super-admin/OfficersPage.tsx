@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, Shield, MoreVertical, UserCheck, UserX, Key, X, Check, ChevronRight } from 'lucide-react';
-import { useOfficerStore, useToast } from '@/store';
+import { useOfficerStore, useToast, useStationStore } from '@/store';
 import { ConfirmDialog } from '@/components/shared';
 
 type Role = 'officer' | 'supervisor' | 'admin' | 'super-admin';
@@ -33,30 +33,6 @@ const ROLE_COLORS: Record<Role, string> = {
   'super-admin': 'bg-[#1A1F3A]/10 text-[#1A1F3A]',
 };
 
-// Demo data for onboarding dropdowns
-const DEMO_REGIONS = [
-  { id: 'r1', name: 'Greater Accra' },
-  { id: 'r2', name: 'Ashanti' },
-  { id: 'r3', name: 'Western' },
-];
-
-const DEMO_DIVISIONS = [
-  { id: 'd1', name: 'Accra Metro', regionId: 'r1' },
-  { id: 'd2', name: 'Tema Division', regionId: 'r1' },
-  { id: 'd3', name: 'Kumasi Metro', regionId: 'r2' },
-];
-
-const DEMO_DISTRICTS = [
-  { id: 'di1', name: 'Accra Central', divisionId: 'd1' },
-  { id: 'di2', name: 'Osu District', divisionId: 'd1' },
-  { id: 'di3', name: 'Tema Central', divisionId: 'd2' },
-];
-
-const DEMO_STATIONS = [
-  { id: 's1', name: 'Accra Central Station', districtId: 'di1' },
-  { id: 's2', name: 'Ring Road Station', districtId: 'di1' },
-  { id: 's3', name: 'Osu Police Station', districtId: 'di2' },
-];
 
 const RANKS = [
   'Constable', 'Lance Corporal', 'Corporal', 'Sergeant', 'Staff Sergeant',
@@ -88,8 +64,27 @@ const INITIAL_ONBOARDING: OnboardingData = {
 
 export function OfficersPage() {
   const { officers } = useOfficerStore();
+  const fetchOfficers = useOfficerStore((state) => state.fetchOfficers);
   const toast = useToast();
-  
+
+  const storeRegions = useStationStore((state) => state.regions);
+  const storeDivisions = useStationStore((state) => state.divisions);
+  const storeDistricts = useStationStore((state) => state.districts);
+  const storeStations = useStationStore((state) => state.stations);
+  const fetchRegions = useStationStore((state) => state.fetchRegions);
+  const fetchDivisions = useStationStore((state) => state.fetchDivisions);
+  const fetchDistricts = useStationStore((state) => state.fetchDistricts);
+  const fetchStations = useStationStore((state) => state.fetchStations);
+
+  useEffect(() => {
+    fetchRegions();
+    fetchDivisions();
+    fetchDistricts();
+    fetchStations();
+  }, [fetchRegions, fetchDivisions, fetchDistricts, fetchStations]);
+
+  useEffect(() => { fetchOfficers(); }, [fetchOfficers]);
+
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentStep, setCurrentStep] = useState(1);
@@ -104,27 +99,19 @@ export function OfficersPage() {
   // Onboarding form
   const [formData, setFormData] = useState<OnboardingData>(INITIAL_ONBOARDING);
 
-  // Demo users
-  const demoUsers: UserData[] = officers.length > 0 
-    ? officers.map(o => ({
-        id: o.id,
-        name: o.fullName || `${o.firstName} ${o.lastName}`,
-        badgeNumber: o.badgeNumber,
-        email: o.email || `${o.badgeNumber.toLowerCase()}@police.gov.gh`,
-        phone: o.phone || '+233 24 123 4567',
-        role: o.rank?.includes('inspector') ? 'supervisor' : 'officer',
-        stationName: o.stationName || 'Accra Central Station',
-        regionName: 'Greater Accra',
-        isActive: o.isActive,
-        lastLogin: '2 hours ago',
-      }))
-    : [
-        { id: 'u-1', name: 'Kwame Asante', badgeNumber: 'GPS001', email: 'k.asante@police.gov.gh', phone: '+233 24 111 2222', role: 'officer', stationName: 'Accra Central', regionName: 'Greater Accra', isActive: true, lastLogin: '10 mins ago' },
-        { id: 'u-2', name: 'Akua Mensah', badgeNumber: 'GPS002', email: 'a.mensah@police.gov.gh', phone: '+233 24 333 4444', role: 'supervisor', stationName: 'Tema Station', regionName: 'Greater Accra', isActive: true, lastLogin: '1 hour ago' },
-        { id: 'u-3', name: 'John Appiah', badgeNumber: 'ADMIN01', email: 'j.appiah@police.gov.gh', phone: '+233 24 555 6666', role: 'admin', stationName: 'Regional HQ', regionName: 'Greater Accra', isActive: true, lastLogin: '3 hours ago' },
-        { id: 'u-4', name: 'Grace Osei', badgeNumber: 'SUPER01', email: 'g.osei@police.gov.gh', phone: '+233 24 777 8888', role: 'super-admin', stationName: 'National HQ', regionName: 'National', isActive: true, lastLogin: '30 mins ago' },
-        { id: 'u-5', name: 'Samuel Boateng', badgeNumber: 'GPS003', email: 's.boateng@police.gov.gh', phone: '+233 24 999 0000', role: 'officer', stationName: 'Kumasi Central', regionName: 'Ashanti', isActive: false, lastLogin: '2 weeks ago' },
-      ];
+  // Map officers to user data format
+  const demoUsers: UserData[] = officers.map(o => ({
+    id: o.id,
+    name: o.fullName || `${o.firstName} ${o.lastName}`,
+    badgeNumber: o.badgeNumber,
+    email: o.email || `${o.badgeNumber.toLowerCase()}@police.gov.gh`,
+    phone: o.phone || '+233 24 123 4567',
+    role: (o.rank?.includes('inspector') ? 'supervisor' : 'officer') as Role,
+    stationName: o.stationName || 'Unassigned',
+    regionName: o.regionId || '',
+    isActive: o.isActive,
+    lastLogin: '',
+  }));
 
   const filteredUsers = useMemo(() => {
     return demoUsers.filter(user => {
@@ -165,9 +152,9 @@ export function OfficersPage() {
     setViewMode('list');
   };
 
-  const filteredDivisions = DEMO_DIVISIONS.filter(d => d.regionId === formData.regionId);
-  const filteredDistricts = DEMO_DISTRICTS.filter(d => d.divisionId === formData.divisionId);
-  const filteredStations = DEMO_STATIONS.filter(s => s.districtId === formData.districtId);
+  const filteredDivisions = storeDivisions.filter(d => d.regionId === formData.regionId);
+  const filteredDistricts = storeDistricts.filter(d => d.divisionId === formData.divisionId);
+  const filteredStations = storeStations.filter(s => s.districtId === formData.districtId);
 
   // ADD NEW OFFICER VIEW
   if (viewMode === 'add') {
@@ -262,7 +249,7 @@ export function OfficersPage() {
                     onChange={(e) => { updateField('regionId', e.target.value); updateField('divisionId', ''); updateField('districtId', ''); updateField('stationId', ''); }}
                     className="w-full px-3 py-2 border border-gray-200 focus:outline-none focus:border-[#1A1F3A] bg-white">
                     <option value="">Select Region</option>
-                    {DEMO_REGIONS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    {storeRegions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </div>
                 <div>

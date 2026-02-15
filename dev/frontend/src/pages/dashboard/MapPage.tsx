@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Icon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Navigation } from 'lucide-react';
-import { useJurisdiction } from '@/store/auth.store';
-import { DEMO_STATIONS, matchesJurisdiction } from '@/lib/demo/jurisdiction';
+import { useStationStore } from '@/store/station.store';
+import { useTicketStore } from '@/store/ticket.store';
 
 // Fix for default marker icon
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -18,19 +18,24 @@ Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-const RECENT_TICKETS = [
-  { id: 'TKT-001', lat: 5.5520, lng: -0.1980, type: 'Speeding', time: '10 mins ago' },
-  { id: 'TKT-002', lat: 5.5580, lng: -0.1850, type: 'Red Light', time: '25 mins ago' },
-  { id: 'TKT-003', lat: 5.6050, lng: -0.1720, type: 'Illegal Parking', time: '1 hour ago' },
-];
-
 export function MapPage() {
   const [filter, setFilter] = useState('all'); // all, stations, tickets
   const [stationType, setStationType] = useState<'all' | 'HQ' | 'District'>('all');
-  const jurisdiction = useJurisdiction();
 
-  const scopedStations = DEMO_STATIONS.filter((s) => matchesJurisdiction(jurisdiction, s));
-  const filteredStations = scopedStations.filter((s) => stationType === 'all' || s.type === stationType);
+  const stations = useStationStore((state) => state.stations);
+  const fetchStations = useStationStore((state) => state.fetchStations);
+  const tickets = useTicketStore((state) => state.tickets);
+  const fetchTickets = useTicketStore((state) => state.fetchTickets);
+  useEffect(() => { fetchStations(); fetchTickets(); }, [fetchStations, fetchTickets]);
+
+  // Derive recent ticket markers - requires tickets with location data from API
+  const recentTickets = useMemo(() => tickets.slice(0, 5).map(t => ({
+    id: t.ticketNumber,
+    type: `${t.offenceCount} offence(s)`,
+    time: new Date(t.issuedAt).toLocaleString(),
+  })), [tickets]);
+
+  const filteredStations = stations.filter((s) => stationType === 'all' || s.type === stationType);
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -112,36 +117,30 @@ export function MapPage() {
             </Marker>
           ))}
 
-          {/* Ticket Markers - Using a different icon color would be better, but standard for now */}
-          {(filter === 'all' || filter === 'tickets') && RECENT_TICKETS.map(ticket => (
-            <Marker 
-              key={ticket.id} 
-              position={[ticket.lat, ticket.lng]}
-              opacity={0.8}
-            >
-              <Popup>
-                <div className="p-1">
-                  <h3 className="font-bold text-red-600">{ticket.type}</h3>
-                  <p className="text-xs text-gray-500">{ticket.time}</p>
-                  <p className="text-xs font-mono mt-1">{ticket.id}</p>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+          {/* Ticket markers require geo data from full ticket API - shown in overlay instead */}
         </MapContainer>
+
+        {/* Recent Tickets Overlay */}
+        {(filter === 'all' || filter === 'tickets') && recentTickets.length > 0 && (
+          <div className="absolute bottom-6 left-6 bg-white p-4 border border-gray-200 z-[1000] max-w-xs">
+            <h4 className="font-bold text-sm mb-2">Recent Tickets</h4>
+            <div className="space-y-2">
+              {recentTickets.map(t => (
+                <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-mono text-gray-700">{t.id}</span>
+                  <span className="text-gray-500">{t.time}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Legend Overlay */}
         <div className="absolute bottom-6 right-6 bg-white p-4 border border-gray-200 z-[1000]">
           <h4 className="font-bold text-sm mb-2">Legend</h4>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500"></div>
-              <span className="text-xs text-gray-600">Police Station</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-300"></div>
-              <span className="text-xs text-gray-600">Recent Ticket</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500"></div>
+            <span className="text-xs text-gray-600">Police Station</span>
           </div>
         </div>
       </div>

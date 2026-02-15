@@ -10,8 +10,7 @@ import type {
   AuditStats,
   CreateAuditLogInput,
 } from '@/types';
-import { ENV, shouldUseMock } from '@/config/environment';
-import { MOCK_AUDIT_LOGS } from '@/lib/mock/audit.mock';
+import { auditAPI } from '@/lib/api/audit.api';
 import { useAuthStore } from './auth.store';
 
 interface AuditState {
@@ -22,18 +21,21 @@ interface AuditState {
 }
 
 interface AuditActions {
+  // API actions
+  fetchAuditLogs: () => Promise<void>;
+
   // Core actions
   addLog: (input: CreateAuditLogInput) => Promise<AuditLog>;
   getLogs: (filters?: AuditFilters) => AuditLog[];
   getLogById: (id: string) => AuditLog | undefined;
-  
+
   // Filtering
   setFilters: (filters: Partial<AuditFilters>) => void;
   clearFilters: () => void;
-  
+
   // Stats
   getStats: () => AuditStats;
-  
+
   // Entity-specific queries
   getLogsByEntity: (entityType: AuditEntityType, entityId: string) => AuditLog[];
   getLogsByUser: (userId: string) => AuditLog[];
@@ -42,12 +44,11 @@ interface AuditActions {
   getLogsByStation: (stationId: string) => AuditLog[];
   getLogsByRegion: (regionId: string) => AuditLog[];
   getLogsByDateRange: (startDate: string, endDate: string) => AuditLog[];
-  
+
   // Recent logs
   getRecentLogs: (limit?: number) => AuditLog[];
-  
+
   // Utility
-  loadMockData: () => void;
   clearLogs: () => void;
   setError: (error: string | null) => void;
 }
@@ -74,13 +75,24 @@ export const useAuditStore = create<AuditState & AuditActions>()(
       error: null,
       filters: initialFilters,
 
+      // Fetch audit logs from API
+      fetchAuditLogs: async () => {
+        set({ isLoading: true });
+        try {
+          const response = await auditAPI.list();
+          set({ logs: response.items, isLoading: false, error: null });
+        } catch {
+          set({ isLoading: false });
+        }
+      },
+
       // Add a new audit log
       addLog: async (input: CreateAuditLogInput): Promise<AuditLog> => {
         // Get current user context from auth store
         const authState = useAuthStore.getState();
         const currentUser = authState.user;
         const officer = currentUser?.officer;
-        
+
         const newLog: AuditLog = {
           id: generateAuditId(),
           action: input.action,
@@ -113,16 +125,6 @@ export const useAuditStore = create<AuditState & AuditActions>()(
           logs: [newLog, ...state.logs],
         }));
 
-        // In production, also send to API
-        if (!shouldUseMock()) {
-          try {
-            // await api.audit.create(newLog);
-            console.log('[Audit] Log sent to server:', newLog.id);
-          } catch (error) {
-            console.error('[Audit] Failed to sync log:', error);
-          }
-        }
-
         return newLog;
       },
 
@@ -137,36 +139,36 @@ export const useAuditStore = create<AuditState & AuditActions>()(
             const actions = Array.isArray(activeFilters.action) ? activeFilters.action : [activeFilters.action];
             if (!actions.includes(log.action)) return false;
           }
-          
+
           // Handle entityType filter (can be single or array)
           if (activeFilters.entityType) {
             const entityTypes = Array.isArray(activeFilters.entityType) ? activeFilters.entityType : [activeFilters.entityType];
             if (!entityTypes.includes(log.entityType)) return false;
           }
-          
+
           if (activeFilters.severity && log.severity !== activeFilters.severity) return false;
           if (activeFilters.userId && log.userId !== activeFilters.userId) return false;
           if (activeFilters.stationId && log.stationId !== activeFilters.stationId) return false;
           if (activeFilters.regionId && log.regionId !== activeFilters.regionId) return false;
-          
+
           if (activeFilters.dateFrom) {
             const logDate = new Date(log.timestamp);
             const startDate = new Date(activeFilters.dateFrom);
             if (logDate < startDate) return false;
           }
-          
+
           if (activeFilters.dateTo) {
             const logDate = new Date(log.timestamp);
             const endDate = new Date(activeFilters.dateTo);
             if (logDate > endDate) return false;
           }
-          
+
           if (activeFilters.search) {
             const query = activeFilters.search.toLowerCase();
             const searchable = `${log.description} ${log.userName} ${log.entityId}`.toLowerCase();
             if (!searchable.includes(query)) return false;
           }
-          
+
           return true;
         });
       },
@@ -188,30 +190,30 @@ export const useAuditStore = create<AuditState & AuditActions>()(
       // Get statistics
       getStats: (): AuditStats => {
         const { logs } = get();
-        
+
         const actionsByType: Record<AuditAction, number> = {} as Record<AuditAction, number>;
         const actionsByEntity: Record<AuditEntityType, number> = {} as Record<AuditEntityType, number>;
         const userActionCount: Record<string, { userId: string; userName: string; count: number }> = {};
-        
+
         logs.forEach((log) => {
           actionsByType[log.action] = (actionsByType[log.action] || 0) + 1;
           actionsByEntity[log.entityType] = (actionsByEntity[log.entityType] || 0) + 1;
-          
-          if (!userActionCount[log.userId]) {
-            userActionCount[log.userId] = { userId: log.userId, userName: log.userName, count: 0 };
+
+          if (!userActionCount[log.userId || 'system']) {
+            userActionCount[log.userId || 'system'] = { userId: log.userId || 'system', userName: log.userName, count: 0 };
           }
-          userActionCount[log.userId].count += 1;
+          userActionCount[log.userId || 'system'].count += 1;
         });
-        
+
         // Top users by action count
         const topUsers = Object.values(userActionCount)
           .map(u => ({ userId: u.userId, userName: u.userName, actionCount: u.count }))
           .sort((a, b) => b.actionCount - a.actionCount)
           .slice(0, 10);
-        
+
         // Recent activity (last 10 logs)
         const recentActivity = logs.slice(0, 10);
-        
+
         return {
           totalActions: logs.length,
           actionsByType,
@@ -251,7 +253,7 @@ export const useAuditStore = create<AuditState & AuditActions>()(
       getLogsByDateRange: (startDate: string, endDate: string): AuditLog[] => {
         const start = new Date(startDate);
         const end = new Date(endDate);
-        
+
         return get().logs.filter((log) => {
           const logDate = new Date(log.timestamp);
           return logDate >= start && logDate <= end;
@@ -260,13 +262,6 @@ export const useAuditStore = create<AuditState & AuditActions>()(
 
       getRecentLogs: (limit = 20): AuditLog[] => {
         return get().logs.slice(0, limit);
-      },
-
-      loadMockData: () => {
-        if (ENV.USE_MOCK_DATA) {
-          set({ logs: MOCK_AUDIT_LOGS });
-          console.log('[Audit] Loaded mock data:', MOCK_AUDIT_LOGS.length, 'logs');
-        }
       },
 
       clearLogs: () => {

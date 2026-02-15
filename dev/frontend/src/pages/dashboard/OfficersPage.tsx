@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, UserPlus, MapPin, Phone, Eye } from 'lucide-react';
 import { useOfficerStore } from '@/store/officer.store';
-import { useJurisdiction } from '@/store/auth.store';
+import { useStationStore } from '@/store/station.store';
 import { useUIStore } from '@/store/ui.store';
 import { cn } from '@/lib/utils';
-import { matchesJurisdiction, DEMO_STATIONS } from '@/lib/demo/jurisdiction';
 import { DataTable, Modal, type Column } from '@/components/shared';
 import type { OfficerRank, Officer } from '@/types/officer.types';
 
@@ -24,8 +23,10 @@ const initialFormState = {
 export function OfficersPage() {
   const officers = useOfficerStore((state) => state.officers);
   const addOfficer = useOfficerStore((state) => state.addOfficer);
-  const jurisdiction = useJurisdiction();
+  const fetchOfficers = useOfficerStore((state) => state.fetchOfficers);
   const addToast = useUIStore((state) => state.addToast);
+  const storeStations = useStationStore((state) => state.stations);
+  const fetchStations = useStationStore((state) => state.fetchStations);
   const [searchTerm, setSearchTerm] = useState('');
   const [stationFilter, setStationFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -34,15 +35,12 @@ export function OfficersPage() {
   const [formData, setFormData] = useState(initialFormState);
   const [noStationException, setNoStationException] = useState(false);
 
-  const stations = DEMO_STATIONS.filter(s => matchesJurisdiction(jurisdiction, s));
+  useEffect(() => { fetchStations(); }, [fetchStations]);
+  useEffect(() => { fetchOfficers(); }, [fetchOfficers]);
+
+  const stations = storeStations;
 
   const filteredOfficers = officers.filter(officer => {
-    if (!matchesJurisdiction(jurisdiction, {
-      stationId: officer.stationId,
-      stationName: officer.stationName,
-      regionId: officer.regionId,
-    })) return false;
-
     const matchesSearch =
       officer.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       officer.badgeNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
